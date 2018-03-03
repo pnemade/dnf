@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-#
-# Copyright (C) 2013-2016 Red Hat, Inc.
+
+# Copyright (C) 2013-2018 Red Hat, Inc.
 #
 # This copyrighted material is made available to anyone wishing to use,
 # modify, copy, or redistribute it subject to the terms and conditions of
@@ -20,34 +20,41 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import unicode_literals
-from tests import support
-from tests.support import mock
+
+import operator
+
+import libcomps
+from hawkey import SwdbReason, SwdbPkg, SwdbItem
 
 import dnf.comps
 import dnf.exceptions
 import dnf.persistor
 import dnf.util
-import libcomps
-import operator
 
-TRANSLATION=u"""Tato skupina zahrnuje nejmenší možnou množinu balíčků. Je vhodná například na instalace malých routerů nebo firewallů."""
+import tests.support
+from tests.support import mock
 
-class LangsTest(support.TestCase):
+
+TRANSLATION = u"""Tato skupina zahrnuje nejmenší možnou množinu balíčků. Je vhodná například na instalace malých routerů nebo firewallů."""
+
+
+class LangsTest(tests.support.TestCase):
     @mock.patch('locale.getlocale', return_value=('cs_CZ', 'UTF-8'))
     def test_get(self, _unused):
         langs = dnf.comps._Langs().get()
         self.assertEqual(langs, ['cs_CZ.UTF-8', 'cs_CZ', 'cs.UTF-8', 'cs', 'C'])
 
-class CompsTest(support.TestCase):
+
+class CompsTest(tests.support.TestCase):
     def setUp(self):
         comps = dnf.comps.Comps()
-        comps._add_from_xml_filename(support.COMPS_PATH)
+        comps._add_from_xml_filename(tests.support.COMPS_PATH)
         self.comps = comps
 
     def test_by_pattern(self):
         comps = self.comps
         self.assertLength(comps.groups_by_pattern('Base'), 1)
-        self.assertLength(comps.groups_by_pattern('*'), support.TOTAL_GROUPS)
+        self.assertLength(comps.groups_by_pattern('*'), tests.support.TOTAL_GROUPS)
         self.assertLength(comps.groups_by_pattern('Solid*'), 1)
 
         group = dnf.util.first(comps.groups_by_pattern('Base'))
@@ -121,7 +128,7 @@ class CompsTest(support.TestCase):
     def test_size(self):
         comps = self.comps
         self.assertLength(comps, 6)
-        self.assertLength(comps.groups, support.TOTAL_GROUPS)
+        self.assertLength(comps.groups, tests.support.TOTAL_GROUPS)
         self.assertLength(comps.categories, 1)
         self.assertLength(comps.environments, 1)
 
@@ -137,14 +144,16 @@ class CompsTest(support.TestCase):
         env = dnf.util.first(comps.environments_by_pattern('sugar-*'))
         self.assertEqual(env.ui_description, u'Software pro výuku o vyučování.')
 
-class PackageTest(support.TestCase):
+
+class PackageTest(tests.support.TestCase):
     def test_instance(self):
         lc_pkg = libcomps.Package('weather', libcomps.PACKAGE_TYPE_OPTIONAL)
         pkg = dnf.comps.Package(lc_pkg)
         self.assertEqual(pkg.name, 'weather')
         self.assertEqual(pkg.option_type, dnf.comps.OPTIONAL)
 
-class TestTransactionBunch(support.TestCase):
+
+class TestTransactionBunch(tests.support.TestCase):
 
     def test_adding(self):
         t1 = dnf.comps.TransactionBunch()
@@ -160,71 +169,103 @@ class TestTransactionBunch(support.TestCase):
         self.assertEmpty(t1.remove)
 
 
-class SolverTestMixin(object):
+class SolverGroupTest(tests.support.DnfBaseTestCase):
 
-    def setUp(self):
-        comps = dnf.comps.Comps()
-        comps._add_from_xml_filename(support.COMPS_PATH)
-        self.comps = comps
-        self.persistor = support.MockGroupPersistor()
-        self.solver = dnf.comps.Solver(self.persistor, self.comps, support.REASONS.get)
-
-
-class SolverGroupTest(SolverTestMixin, support.TestCase):
+    REPOS = []
+    COMPS = True
+    COMPS_SOLVER = True
 
     def test_install(self):
         grp = self.comps.group_by_pattern('base')
         trans = self.solver._group_install(grp.id, dnf.comps.MANDATORY, ['right'])
+        self.persistor.commit()
         self.assertLength(trans.install, 2)
         p_grp = self.persistor.group('base')
-        self.assertCountEqual(p_grp.full_list, ['pepper', 'tour'])
-        self.assertCountEqual(p_grp.pkg_exclude, ['right'])
+        self.assertCountEqual(p_grp.get_full_list(), ['pepper', 'tour'])
+        self.assertCountEqual(p_grp.get_exclude(), ['right'])
         self.assertEqual(p_grp.pkg_types, dnf.comps.MANDATORY)
 
     def test_removable_pkg(self):
-        p_grp1 = self.persistor.group('base')
-        p_grp2 = self.persistor.group('tune')
-        p_grp1.full_list.extend(('pepper', 'tour', 'right'))
-        p_grp2.full_list.append('tour')
+        grp = self.comps.group_by_pattern('base')
+        self.solver._group_install(grp.id, dnf.comps.MANDATORY, [])
+        self.persistor.commit()
+
+        pkg1 = SwdbPkg.new("pepper", 0, "20", "0", "x86_64", "987abc", "sha256", SwdbItem.RPM)
+        pid = self.history.add_package(pkg1)
+        self.history.swdb.trans_data_beg(1, pid, SwdbReason.GROUP, "Installed", False)
+
+        pkg2 = SwdbPkg.new("right", 1, "22", "0", "x86_64", "321abcd", "sha256", SwdbItem.RPM)
+        pid2 = self.history.add_package(pkg2)
+        self.history.swdb.trans_data_beg(1, pid2, SwdbReason.DEP, "Installed", False)
+
+        n = "dupl"
+        p_grp = self.persistor.new_group(n, n, n, True, 0)
+        self.persistor.add_group(p_grp)
+        p_grp.add_package(["tour"])
+
+        pkg3 = SwdbPkg.new("tour", 0, "20", "0", "x86_64", "132abcd", "sha256", SwdbItem.RPM)
+        pid3 = self.history.add_package(pkg3)
+        self.history.swdb.trans_data_beg(1, pid3, SwdbReason.GROUP, "Installed", False)
+
+        # pepper is in single group with reason "group"
         self.assertTrue(self.solver._removable_pkg('pepper'))
         # right's reason is "dep"
         self.assertFalse(self.solver._removable_pkg('right'))
         # tour appears in more than one group
         self.assertFalse(self.solver._removable_pkg('tour'))
 
+        self.persistor.remove_group(p_grp, True)
+        # tour appears only in one group now
+        self.assertTrue(self.solver._removable_pkg('tour'))
+
     def test_remove(self):
-        # setup of the "current state"
-        p_grp = self.persistor.group('base')
-        p_grp.pkg_types = dnf.comps.MANDATORY
-        p_grp.full_list.extend(('pepper', 'tour'))
-        p_grp2 = self.persistor.group('tune')
-        p_grp2.full_list.append('pepper')
+        grp = self.comps.group_by_pattern('base')
+        self.solver._group_install(grp.id, dnf.comps.MANDATORY, [])
+        self.persistor.commit()
 
         grps = self.persistor.groups_by_pattern('base')
         for grp in grps:
-            trans = self.solver._group_remove(grp)
-            self.assertFalse(p_grp.installed)
-            self.assertTransEqual(trans.remove, ('tour',))
+            self.solver._group_remove(grp)
+        self.persistor.commit()
+
+        # need to load groups again - loaded object is stays the same
+        grps = self.persistor.groups_by_pattern('base')
+        for grp in grps:
+                self.assertFalse(grp.installed)
 
     def test_upgrade(self):
         # setup of the "current state"
-        p_grp = self.persistor.group('base')
-        p_grp.pkg_types = dnf.comps.MANDATORY
-        p_grp.full_list.extend(('pepper', 'handerson'))
-
+        name = "base"
+        p_grp = self.persistor.new_group(name,
+                                         name,
+                                         name,
+                                         True,
+                                         dnf.comps.MANDATORY)
+        self.persistor.add_group(p_grp)
+        p_grp.add_package(['pepper', 'handerson'])
         grp = self.comps.group_by_pattern('base')
         trans = self.solver._group_upgrade(grp.id)
         self.assertTransEqual(trans.install, ('tour',))
         self.assertTransEqual(trans.remove, ('handerson',))
         self.assertTransEqual(trans.upgrade, ('pepper',))
-        self.assertCountEqual(p_grp.full_list, ('tour', 'pepper'))
+        p_grp = self.persistor.group('base')
+        self.assertCountEqual(p_grp.get_full_list(), ('tour', 'pepper'))
 
 
-class SolverEnvironmentTest(SolverTestMixin, support.TestCase):
+class SolverEnvironmentTest(tests.support.DnfBaseTestCase):
 
-    def _install(self, env):
-        return self.solver._environment_install(env.id, dnf.comps.MANDATORY,
-                                                ('lotus',))
+    REPOS = []
+    COMPS = True
+    COMPS_SOLVER = True
+
+    def _install(self, env, ex=True):
+        exclude = ('lotus',) if ex else []
+        trans = self.solver._environment_install(
+            env.id,
+            dnf.comps.MANDATORY,
+            exclude)
+        self.persistor.commit()
+        return trans
 
     def test_install(self):
         env = self.comps.environment_by_pattern('sugar-desktop-environment')
@@ -232,32 +273,58 @@ class SolverEnvironmentTest(SolverTestMixin, support.TestCase):
         self.assertCountEqual([pkg.name for pkg in trans.install],
                               ('pepper', 'trampoline', 'hole'))
         sugar = self.persistor.environment('sugar-desktop-environment')
-        self.assertCountEqual(sugar.full_list, ('Peppers', 'somerset'))
+        self.assertCountEqual(sugar.get_group_list(), ('Peppers', 'somerset'))
         somerset = self.persistor.group('somerset')
         self.assertTrue(somerset.installed)
         self.assertEqual(somerset.pkg_types, dnf.comps.MANDATORY)
-        self.assertCountEqual(somerset.pkg_exclude, ('lotus',))
+        self.assertCountEqual(somerset.get_exclude(), ('lotus',))
         base = self.persistor.group('somerset')
         self.assertTrue(base.installed)
 
     def test_remove(self):
         env = self.comps.environment_by_pattern('sugar-desktop-environment')
         self._install(env)
-        trans = self.solver._environment_remove(env.id)
+        self.solver._environment_remove(env.id)
+        self.persistor.commit()
 
         p_env = self.persistor.environment('sugar-desktop-environment')
-        self.assertTransEqual(trans.remove, ('pepper', 'trampoline', 'hole'))
-        self.assertFalse(p_env.grp_types)
-        self.assertFalse(p_env.pkg_types)
+        self.assertFalse(p_env.installed)
+        self.assertEqual(p_env.pkg_types, dnf.comps.MANDATORY)
+        self.assertEqual(p_env.grp_types, dnf.comps.ALL_TYPES)
+
+        grp_list = p_env.get_group_list()
+        self.assertTrue(len(grp_list))
+        for grp in grp_list:
+            _grp = self.persistor.group(grp)
+            self.assertEqual(_grp.pkg_types, dnf.comps.MANDATORY)
+            self.assertFalse(_grp.installed)
+
+        # install it again with different pkg_types
+        self.solver._environment_install(env.id, dnf.comps.OPTIONAL, [])
+        self.persistor.commit()
+        p_env = self.persistor.environment('sugar-desktop-environment')
+        self.assertTrue(p_env.installed)
+        self.assertEqual(p_env.pkg_types, dnf.comps.OPTIONAL)
+        self.assertEqual(p_env.grp_types, dnf.comps.ALL_TYPES)
+        grp_list = p_env.get_group_list()
+        self.assertTrue(len(grp_list))
+        for grp in grp_list:
+            _grp = self.persistor.group(grp)
+            self.assertEqual(_grp.pkg_types, dnf.comps.OPTIONAL)
 
     def test_upgrade(self):
         """Upgrade environment, the one group it knows is no longer installed."""
-        p_env = self.persistor.environment('sugar-desktop-environment')
-        p_env.full_list.extend(['somerset'])
-        p_env.grp_types = dnf.comps.ALL_TYPES
-        p_env.pkg_types = dnf.comps.ALL_TYPES
-
         env = self.comps.environment_by_pattern('sugar-desktop-environment')
+        self.solver._environment_install(env.id, dnf.comps.ALL_TYPES, [])
+        self.persistor.commit()
+
+        p_env = self.persistor.environment('sugar-desktop-environment')
+        self.assertTrue(p_env.installed)
+
+        grp = self.persistor.group('Peppers')
+        grp.update_full_list([])
+
         trans = self.solver._environment_upgrade(env.id)
         self.assertTransEqual(trans.install, ('hole', 'lotus'))
-        self.assertEmpty(trans.upgrade)
+        self.assertTransEqual(trans.upgrade, ('pepper', 'trampoline', 'lotus'))
+        self.assertEmpty(trans.remove)

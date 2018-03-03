@@ -111,7 +111,7 @@ def print_versions(pkgs, base, output):
 
     rpmdb_sack = dnf.sack._rpmdb_sack(base)
     done = False
-    for pkg in rpmdb_sack.query().installed().filter(name=pkgs):
+    for pkg in rpmdb_sack.query().installed().filterm(name=pkgs):
         if done:
             print("")
         done = True
@@ -138,11 +138,6 @@ class BaseCli(dnf.Base):
         super(BaseCli, self).__init__(conf=conf)
         self.output = output.Output(self, self.conf)
 
-    def _groups_diff(self):
-        if not self._group_persistor:
-            return None
-        return self._group_persistor.diff()
-
     def do_transaction(self, display=()):
         """Take care of package downloading, checking, user
         confirmation and actually running the transaction.
@@ -166,10 +161,6 @@ class BaseCli(dnf.Base):
                 logger.debug(
                     'Includes in repo ' + repo.id + ": " + ", ".join(sorted(set(repo.includepkgs))))
 
-        grp_diff = self._groups_diff()
-        grp_str = self.output.list_group_transaction(self.comps, self._group_persistor, grp_diff)
-        if grp_str:
-            logger.info(grp_str)
         trans = self.transaction
         pkg_str = self.output.list_transaction(trans)
         if pkg_str:
@@ -199,7 +190,7 @@ class BaseCli(dnf.Base):
             else:
                 self.output.reportDownloadSize(install_pkgs, install_only)
 
-        if trans or (grp_diff and not grp_diff.empty()):
+        if trans:
             # confirm with user
             if self.conf.downloadonly:
                 logger.info(_("DNF will only download packages for the transaction."))
@@ -375,7 +366,7 @@ class BaseCli(dnf.Base):
                 assert False
         cnt = self._goal.req_length() - oldcount
         if cnt <= 0:
-            raise dnf.exceptions.Error(_('Nothing to do.'))
+            raise dnf.exceptions.Error(_('No packages marked for downgrade.'))
 
     def output_packages(self, basecmd, pkgnarrow='all', patterns=(), reponame=None):
         """Output selection *pkgnarrow* of packages matching *patterns* and *repoid*."""
@@ -583,21 +574,21 @@ class BaseCli(dnf.Base):
             return 0, ['Rollback to current, nothing to do']
 
         mobj = None
-        for tid in self.history.old(list(range(old.tid + 1, last.tid + 1))):
-            if tid.altered_lt_rpmdb:
-                logger.warning(_('Transaction history is incomplete, before %u.'), tid.tid)
-            elif tid.altered_gt_rpmdb:
-                logger.warning(_('Transaction history is incomplete, after %u.'), tid.tid)
+        for trans in self.history.old(list(range(old.tid + 1, last.tid + 1))):
+            if trans.altered_lt_rpmdb:
+                logger.warning(_('Transaction history is incomplete, before %u.'), trans.tid)
+            elif trans.altered_gt_rpmdb:
+                logger.warning(_('Transaction history is incomplete, after %u.'), trans.tid)
 
             if mobj is None:
-                mobj = dnf.yum.history.YumMergedHistoryTransaction(tid)
+                mobj = trans
             else:
-                mobj.merge(tid)
+                mobj.merge(trans)
 
         tm = dnf.util.normalize_time(old.beg_timestamp)
         print("Rollback to transaction %u, from %s" % (old.tid, tm))
         print(self.output.fmtKeyValFill("  Undoing the following transactions: ",
-                                      ", ".join((str(x) for x in mobj.tid))))
+                                        ", ".join((str(x) for x in mobj.tids()))))
         self.output.historyInfoCmdPkgsAltered(mobj)  # :todo
 
         history = dnf.history.open_history(self.history)  # :todo
@@ -747,10 +738,13 @@ class Cli(object):
         repos = self.base.repos
 
         if demands.root_user:
-            if not os.getegid() == 0:
+            if not dnf.util.am_i_root():
                 raise dnf.exceptions.Error(_('This command has to be run under the root user.'))
 
-        if not demands.cacheonly:
+        if demands.cacheonly or self.base.conf.cacheonly:
+            self.base.conf.cacheonly = True
+            repos.all()._md_only_cached = True
+        else:
             if demands.freshest_metadata:
                 for repo in repos.iter_enabled():
                     repo._md_expire_cache()
@@ -813,6 +807,8 @@ class Cli(object):
                 self.base.conf.cachedir = self.base.conf.system_cachedir
                 self.demands.cacheonly = True
             self._read_conf_file(opts.releasever)
+            if 'arch' in opts:
+                self.base.conf.arch = opts.arch
             self.base.conf._adjust_conf_options()
         except (dnf.exceptions.ConfigError, ValueError) as e:
             logger.critical(_('Config error: %s'), e)
@@ -874,6 +870,8 @@ class Cli(object):
             self.base.conf.debug_solver = True
         if opts.obsoletes:
             self.base.conf.obsoletes = True
+        self.command.pre_configure()
+        self.base.pre_configure_plugins()
 
         # with cachedir in place we can configure stuff depending on it:
         self.base._activate_persistor()
@@ -885,6 +883,10 @@ class Cli(object):
         self.base.conf._configure_from_options(opts)
 
         self.command.configure()
+
+        if self.base.conf.destdir:
+            dnf.util.ensure_dir(self.base.conf.destdir)
+            self.base.repos.all().pkgdir = self.base.conf.destdir
 
         if self.base.conf.color != 'auto':
             self.base.output.term.reinit(color=self.base.conf.color)
@@ -903,13 +905,14 @@ class Cli(object):
         conf._search_inside_installroot('reposdir')
 
         # cachedir, logs, releasever, and gpgkey are taken from or stored in installroot
-        if releasever is None:
+        subst = conf.substitutions
+        subst.update_from_etc(conf.installroot)
+        if releasever is None and conf.releasever is None:
             releasever = dnf.rpm.detect_releasever(conf.installroot)
         elif releasever == '/':
             releasever = dnf.rpm.detect_releasever(releasever)
-        conf.releasever = releasever
-        subst = conf.substitutions
-        subst.update_from_etc(conf.installroot)
+        if releasever is not None:
+            conf.releasever = releasever
         if conf.releasever is None:
             logger.warning(_("Unable to detect release version (use '--releasever' to specify "
                              "release version)"))
@@ -922,30 +925,43 @@ class Cli(object):
         timer()
         return conf
 
-    def _populate_update_security_filter(self, opts, minimal=None, all=None):
+    def _populate_update_security_filter(self, opts, query, cmp_type='eq', all=None):
+        """
+
+        :param opts:
+        :param query: base package set for filters
+        :param cmp_type: string like "eq", "gt", "gte", "lt", "lte"
+        :param all:
+        :return:
+        """
         if (opts is None) and (all is None):
             return
-        q = self.base.sack.query()
         filters = []
         if opts.bugfix or all:
-            filters.append(q.filter(advisory_type='bugfix'))
+            key = {'advisory_type__' + cmp_type: 'bugfix'}
+            filters.append(query.filter(**key))
         if opts.enhancement or all:
-            filters.append(q.filter(advisory_type='enhancement'))
+            key = {'advisory_type__' + cmp_type: 'enhancement'}
+            filters.append(query.filter(**key))
         if opts.newpackage or all:
-            filters.append(q.filter(advisory_type='newpackage'))
+            key = {'advisory_type__' + cmp_type: 'newpackage'}
+            filters.append(query.filter(**key))
         if opts.security or all:
-            filters.append(q.filter(advisory_type='security'))
+            key = {'advisory_type__' + cmp_type: 'security'}
+            filters.append(query.filter(**key))
         if opts.advisory:
-            filters.append(q.filter(advisory=opts.advisory))
+            key = {'advisory__' + cmp_type: opts.advisory}
+            filters.append(query.filter(**key))
         if opts.bugzilla:
-            filters.append(q.filter(advisory_bug=opts.bugzilla))
+            key = {'advisory_bug__' + cmp_type: opts.bugzilla}
+            filters.append(query.filter(**key))
         if opts.cves:
-            filters.append(q.filter(advisory_cve=opts.cves))
+            key = {'advisory_cve__' + cmp_type: opts.cves}
+            filters.append(query.filter(**key))
         if opts.severity:
-            filters.append(q.filter(advisory_severity=opts.severity))
-        if len(filters):
-            key = 'upgrade' if minimal is None else 'minimal'
-            self.base._update_security_filters[key] = filters
+            key = {'advisory_severity__' + cmp_type: opts.severity}
+            filters.append(query.filter(**key))
+        self.base._update_security_filters = filters
 
     def redirect_logger(self, stdout=None, stderr=None):
         """
@@ -964,9 +980,9 @@ class Cli(object):
         if kernel is None:
             return
 
-        q = self.base.sack.query().filter(provides=kernel.name)
+        q = self.base.sack.query().filterm(provides=kernel.name)
         q = q.installed()
-        q = q.filter(advisory_type='security')
+        q.filterm(advisory_type='security')
 
         ikpkg = kernel
         for pkg in q:

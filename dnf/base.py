@@ -26,10 +26,10 @@ from __future__ import unicode_literals
 from dnf.comps import CompsQuery
 from dnf.i18n import _, P_, ucd
 from dnf.util import first
-from dnf.yum import history
+from dnf.db.history import SwdbInterface
 from dnf.yum import misc
-from dnf.yum import rpmsack
 from functools import reduce
+from hawkey import SwdbPkgData, SwdbReason
 import collections
 import datetime
 import dnf.callback
@@ -52,6 +52,7 @@ import dnf.rpm.connection
 import dnf.rpm.miscutils
 import dnf.rpm.transaction
 import dnf.sack
+import dnf.selector
 import dnf.subject
 import dnf.transaction
 import dnf.util
@@ -88,14 +89,13 @@ class Base(object):
         self._tempfiles = set()
         self._trans_tempfiles = set()
         self._ds_callback = dnf.callback.Depsolve()
-        self._group_persistor = None
         self._logging = dnf.logging.Logging()
         self._repos = dnf.repodict.RepoDict()
         self._rpm_probfilter = set([rpm.RPMPROB_FILTER_OLDPACKAGE])
         self._plugins = dnf.plugin.Plugins()
         self._trans_success = False
         self._tempfile_persistor = None
-        self._update_security_filters = {}
+        self._update_security_filters = []
         self._allow_erasing = False
         self._revert_reason = []
         self._repo_set_imported_gpg_keys = set()
@@ -109,6 +109,8 @@ class Base(object):
     def _add_tempfiles(self, files):
         if self._transaction:
             self._trans_tempfiles.update(files)
+        elif self.conf.destdir:
+            pass
         else:
             self._tempfiles.update(files)
 
@@ -117,7 +119,10 @@ class Base(object):
         hrepo = repo._hawkey_repo
         hrepo.repomd_fn = repo._repomd_fn
         hrepo.primary_fn = repo._primary_fn
-        hrepo.filelists_fn = repo._filelists_fn
+        if repo._filelists_fn is not None:
+            hrepo.filelists_fn = repo._filelists_fn
+        else:
+            logger.debug("not found filelists for: %s", repo.name)
         hrepo.cost = repo.cost
         hrepo.priority = repo.priority
         if repo._presto_fn:
@@ -128,9 +133,14 @@ class Base(object):
             hrepo.updateinfo_fn = repo._updateinfo_fn
         else:
             logger.debug("not found updateinfo for: %s", repo.name)
-        self._sack.load_repo(hrepo, build_cache=True, load_filelists=True,
+        try:
+            self._sack.load_repo(hrepo, build_cache=True, load_filelists=True,
                              load_presto=repo.deltarpm,
                              load_updateinfo=True)
+        except hawkey.Exception as e:
+            logger.debug("loading repo '{}' failure: {}".format(repo.id, e))
+            raise dnf.exceptions.RepoError(
+                _("Loading repository '{}' has failed").format(repo.id))
 
     @staticmethod
     def _setup_default_conf():
@@ -141,46 +151,68 @@ class Base(object):
                 dnf.rpm.detect_releasever(conf.installroot)
         return conf
 
-    def _setup_excludes_includes(self):
+    def _setup_excludes_includes(self, only_main=False):
         disabled = set(self.conf.disable_excludes)
         if 'all' in disabled:
             return
+        repo_includes = []
+        repo_excludes = []
         # first evaluate repo specific includes/excludes
-        for r in self.repos.iter_enabled():
-            if r.id in disabled:
-                continue
-            if len(r.includepkgs) > 0:
-                for incl in r.includepkgs:
-                    subj = dnf.subject.Subject(incl)
-                    pkgs = subj.get_best_query(self.sack)
-                    self.sack.add_includes(pkgs.filter(reponame=r.id))
-                self.sack.set_use_includes(True, r.id)
-            for excl in r.excludepkgs:
-                subj = dnf.subject.Subject(excl)
-                pkgs = subj.get_best_query(self.sack)
-                self.sack.add_excludes(pkgs.filter(reponame=r.id))
+        if not only_main:
+            for r in self.repos.iter_enabled():
+                if r.id in disabled:
+                    continue
+                if len(r.includepkgs) > 0:
+                    incl_query = self.sack.query().filterm(empty=True)
+                    for incl in set(r.includepkgs):
+                        subj = dnf.subject.Subject(incl)
+                        incl_query = incl_query.union(subj.get_best_query(
+                            self.sack, with_nevra=True, with_provides=False, with_filenames=False))
+                    incl_query.filterm(reponame=r.id)
+                    repo_includes.append((incl_query.apply(), r.id))
+                excl_query = self.sack.query().filterm(empty=True)
+                for excl in set(r.excludepkgs):
+                    subj = dnf.subject.Subject(excl)
+                    excl_query = excl_query.union(subj.get_best_query(
+                        self.sack, with_nevra=True, with_provides=False, with_filenames=False))
+                excl_query.filterm(reponame=r.id)
+                if excl_query:
+                    repo_excludes.append((excl_query, r.id))
+
         # then main (global) includes/excludes because they can mask
         # repo specific settings
         if 'main' not in disabled:
+            include_query = self.sack.query().filterm(empty=True)
             if len(self.conf.includepkgs) > 0:
-                for incl in self.conf.includepkgs:
+                for incl in set(self.conf.includepkgs):
                     subj = dnf.subject.Subject(incl)
-                    pkgs = subj.get_best_query(self.sack)
-                    self.sack.add_includes(pkgs)
-                self.sack.set_use_includes(True)
-            for excl in self.conf.excludepkgs:
+                    include_query = include_query.union(subj.get_best_query(
+                        self.sack, with_nevra=True, with_provides=False, with_filenames=False))
+            exclude_query = self.sack.query().filterm(empty=True)
+            for excl in set(self.conf.excludepkgs):
                 subj = dnf.subject.Subject(excl)
-                pkgs = subj.get_best_query(self.sack)
-                self.sack.add_excludes(pkgs)
+                exclude_query = exclude_query.union(subj.get_best_query(
+                    self.sack, with_nevra=True, with_provides=False, with_filenames=False))
+            if len(self.conf.includepkgs) > 0:
+                self.sack.add_includes(include_query)
+                self.sack.set_use_includes(True)
+            if exclude_query:
+                self.sack.add_excludes(exclude_query)
+
+        if repo_includes:
+            for query, repoid in repo_includes:
+                self.sack.add_includes(query)
+                self.sack.set_use_includes(True, repoid)
+
+        if repo_excludes:
+            for query, repoid in repo_excludes:
+                self.sack.add_excludes(query)
 
     def _store_persistent_data(self):
         if self._repo_persistor and not self.conf.cacheonly:
             expired = [r.id for r in self.repos.iter_enabled() if r._md_expired]
             self._repo_persistor.expired_to_add.update(expired)
             self._repo_persistor.save()
-
-        if self._group_persistor:
-            self._group_persistor.save()
 
         if self._tempfile_persistor:
             self._tempfile_persistor.save()
@@ -236,6 +268,11 @@ class Base(object):
         if self.conf.plugins:
             self._plugins._load(self.conf, disabled_glob, enable_plugins)
         self._plugins._run_init(self, cli)
+
+    def pre_configure_plugins(self):
+        # :api
+        """Run plugins pre_configure() method."""
+        self._plugins._run_pre_config()
 
     def configure_plugins(self):
         # :api
@@ -296,7 +333,8 @@ class Base(object):
         # :api
         """Prepare the Sack and the Goal objects. """
         timer = dnf.logging.Timer('sack setup')
-        if self._sack is not None and self._repos is not None:
+        self.reset(sack=True, goal=True)
+        if self._repos is not None:
             for repo in self._repos.values():
                 repo._hawkey_repo = repo._init_hawkey_repo()
         self._sack = dnf.sack._build_sack(self)
@@ -337,6 +375,8 @@ class Base(object):
                         logger.info(_("Last metadata expiration check: %s ago on %s."),
                                     datetime.timedelta(seconds=int(age)),
                                     dnf.util.normalize_time(mts))
+            else:
+                self.repos.all().disable()
         conf = self.conf
         self._sack._configure(conf.installonlypkgs, conf.installonly_limit)
         self._setup_excludes_includes()
@@ -345,11 +385,37 @@ class Base(object):
         self._plugins.run_sack()
         return self._sack
 
-    @property
-    @dnf.util.lazyattr("_priv_yumdb")
-    def _yumdb(self):
-        db_path = os.path.normpath(self.conf.persistdir + '/yumdb')
-        return rpmsack.AdditionalPkgDB(db_path)
+    def _finalize_base(self):
+        if not self._trans_success:
+            for pkg, reason in self._revert_reason:
+                self.history.set_reason(pkg, reason)
+        self._tempfile_persistor = dnf.persistor.TempfilePersistor(
+            self.conf.cachedir)
+
+        if not self.conf.keepcache:
+            self._clean_packages(self._tempfiles)
+            if self._trans_success:
+                self._trans_tempfiles.update(
+                    self._tempfile_persistor.get_saved_tempfiles())
+                self._tempfile_persistor.empty()
+                if self._transaction and self._transaction.install_set:
+                    self._clean_packages(self._trans_tempfiles)
+            else:
+                self._tempfile_persistor.tempfiles_to_add.update(
+                    self._trans_tempfiles)
+
+        if self._tempfile_persistor.tempfiles_to_add:
+            logger.info(_("The downloaded packages were saved in cache "
+                          "until the next successful transaction."))
+            logger.info(_("You can remove cached packages by executing "
+                          "'%s'."), "dnf clean packages")
+
+        # Do not trigger the lazy creation:
+        if self.history is not None:
+            self.history.close()
+        self._store_persistent_data()
+        self._closeRpmDB()
+        self._trans_success = False
 
     def close(self):
         # :api
@@ -363,35 +429,8 @@ class Base(object):
             return
         logger.log(dnf.logging.DDEBUG, 'Cleaning up.')
         self._closed = True
-        if not self._trans_success:
-            for pkg, reason in self._revert_reason:
-                self._yumdb.get_package(pkg).reason = reason
-        self._tempfile_persistor = dnf.persistor.TempfilePersistor(
-            self.conf.cachedir)
-
-        if not self.conf.keepcache:
-            self._clean_packages(self._tempfiles)
-            if self._trans_success:
-                self._trans_tempfiles.update(
-                    self._tempfile_persistor.get_saved_tempfiles())
-                self._tempfile_persistor.empty()
-                if self._transaction.install_set:
-                    self._clean_packages(self._trans_tempfiles)
-            else:
-                self._tempfile_persistor.tempfiles_to_add.update(
-                    self._trans_tempfiles)
-
-        if self._tempfile_persistor.tempfiles_to_add:
-            logger.info(_("The downloaded packages were saved in cache "
-                          "until the next successful transaction."))
-            logger.info(_("You can remove cached packages by executing "
-                          "'%s'."), "dnf clean packages")
-
-        # Do not trigger the lazy creation:
-        if self._history is not None:
-            self.history.close()
-        self._store_persistent_data()
-        self._closeRpmDB()
+        self._finalize_base()
+        self.reset(sack=True, repos=True, goal=True)
 
     def read_all_repos(self, opts=None):
         # :api
@@ -409,15 +448,19 @@ class Base(object):
         """Make the Base object forget about various things."""
         if sack:
             self._sack = None
+            if self._repos is not None:
+                for repo in self._repos.values():
+                    repo._hawkey_repo = None
         if repos:
             self._repos = dnf.repodict.RepoDict()
         if goal:
             self._goal = None
             if self._sack is not None:
                 self._goal = dnf.goal.Goal(self._sack)
-            if self._group_persistor is not None:
-                self._group_persistor = self._activate_group_persistor()
+            if self.history.group_active():
+                self.history.reset_group()
             self._comps_trans = dnf.comps.TransactionBunch()
+            self._transaction = None
 
     def _closeRpmDB(self):
         """Closes down the instances of rpmdb that could be open."""
@@ -471,9 +514,6 @@ class Base(object):
         del self._priv_ts
         self._priv_ts = None
 
-    def _activate_group_persistor(self):
-        return dnf.persistor.GroupPersistor(self.conf.persistdir, self._comps)
-
     def read_comps(self, arch_filter=False):
         # :api
         """Create the groups object to access the comps metadata."""
@@ -507,29 +547,32 @@ class Base(object):
                 msg = _('Failed to add groups file for repository: %s - %s')
                 logger.critical(msg, repo.id, e)
 
-        self._group_persistor = self._activate_group_persistor()
         if arch_filter:
             self._comps._i.arch_filter(
                 [self._conf.substitutions['basearch']])
         timer()
         return self._comps
 
-    def _getHistory(self):
+    def _getHistory(self, db_path=None):
         """auto create the history object that to access/append the transaction
            history information. """
         if self._history is None:
-            db_path = self.conf.persistdir + "/history"
+            if not db_path:
+                db_path = os.path.join(self.conf.persistdir, "history")
             releasever = self.conf.releasever
-            self._history = history.YumHistory(db_path, self._yumdb,
-                                               root=self.conf.installroot,
-                                               releasever=releasever)
+            self._history = SwdbInterface(
+                db_path,
+                root=self.conf.installroot,
+                releasever=releasever,
+                transform=self.conf.transformdb
+            )
         return self._history
 
     history = property(fget=lambda self: self._getHistory(),
                        fset=lambda self, value: setattr(
                            self, "_history", value),
                        fdel=lambda self: setattr(self, "_history", None),
-                       doc="Yum History Object")
+                       doc="DNF SWDB Interface Object")
 
     def _goal2transaction(self, goal):
         ts = dnf.transaction.Transaction()
@@ -594,18 +637,13 @@ class Base(object):
         """ See if sltr matches a patches that is (in older version or different
             architecture perhaps) already installed.
         """
-        inst = self.sack.query().installed()
-        inst = inst.filter(pkg=sltr.matches())
+        inst = self.sack.query().installed().filterm(pkg=sltr.matches())
         return list(inst)
-
-    def _is_userinstalled(self, pkg):
-        """Returns true if the package is installed by user."""
-        return self._yumdb.get_package(pkg).get('reason') == 'user' and \
-            self._yumdb.get_package(pkg).get('from_repo') != 'anakonda'
 
     def iter_userinstalled(self):
         """Get iterator over the packages installed by the user."""
-        return (pkg for pkg in self.sack.query().installed() if self._is_userinstalled(pkg))
+        return (pkg for pkg in self.sack.query().installed()
+                if self.history.user_installed(pkg))
 
     def _run_hawkey_goal(self, goal, allow_erasing):
         ret = goal.run(
@@ -625,7 +663,8 @@ class Base(object):
         self._ds_callback.start()
         goal = self._goal
         if goal.req_has_erase():
-            goal.push_userinstalled(self.sack.query().installed(), self._yumdb)
+            goal.push_userinstalled(self.sack.query().installed(),
+                                    self.history)
         elif not self.conf.upgrade_group_objects_upgrade:
             # exclude packages installed from groups
             # these packages will be marked to installation
@@ -633,12 +672,10 @@ class Base(object):
             # to prevent "conflicting job" error it's not applied
             # to "remove" and "reinstall" commands
 
-            if not self._group_persistor:
-                self._group_persistor = self._activate_group_persistor()
             solver = self._build_comps_solver()
             solver._exclude_packages_from_installed_groups(self)
 
-        goal.add_protected(self.sack.query().filter(
+        goal.add_protected(self.sack.query().filterm(
             name=self.conf.protected_packages))
         if not self._run_hawkey_goal(goal, allow_erasing):
             if self.conf.debuglevel >= 6:
@@ -659,12 +696,8 @@ class Base(object):
                 exc = dnf.exceptions.Error(msg)
 
         if exc is not None:
-            if self._group_persistor:
-                self._group_persistor._rollback()
             raise exc
-        if self._group_persistor:
-            installed = self.sack.query().installed()
-            self._group_persistor.update_group_env_installed(installed, goal)
+
         self._plugins.run_resolved()
         return got_transaction
 
@@ -676,13 +709,14 @@ class Base(object):
             [dnf.yum.rpmtrans.LoggingTransactionDisplay()] + list(display)
 
         if not self.transaction:
-            if self._group_persistor:
+            if self.history.group_active():
                 self._trans_success = True
-                self._group_persistor.commit()
+                self.history.group.commit()
             return
 
         logger.info(_('Running transaction check'))
-        lock = dnf.lock.build_rpmdb_lock(self.conf.persistdir, self.conf.exit_on_lock)
+        lock = dnf.lock.build_rpmdb_lock(self.conf.persistdir,
+                                         self.conf.exit_on_lock)
         with lock:
             # save our ds_callback out
             dscb = self._ds_callback
@@ -737,8 +771,8 @@ class Base(object):
         timer()
         self._plugins.unload_removed_plugins(self.transaction)
         self._plugins.run_transaction()
-        if self._group_persistor and self._trans_success:
-            self._group_persistor.commit()
+        if self.history.group_active() and self._trans_success:
+            self.history.group.commit()
 
     def _trans_error_summary(self, errstring):
         """Parse the error string for 'interesting' errors which can
@@ -780,10 +814,10 @@ class Base(object):
             using_pkgs_pats = list(self.conf.history_record_packages)
             installed_query = self.sack.query().installed()
             using_pkgs = installed_query.filter(name=using_pkgs_pats).run()
-            rpmdbv = self.sack._rpmdb_version(self._yumdb)
+            rpmdbv = self.sack._rpmdb_version(self.history)
             lastdbv = self.history.last()
             if lastdbv is not None:
-                lastdbv = lastdbv.end_rpmdbversion
+                lastdbv = lastdbv.end_rpmdb_version
 
             if lastdbv is None or rpmdbv != lastdbv:
                 logger.debug("RPMDB altered outside of DNF.")
@@ -794,14 +828,19 @@ class Base(object):
             elif hasattr(self, 'cmds') and self.cmds:
                 cmdline = ' '.join(self.cmds)
 
-            self.history.beg(rpmdbv, using_pkgs, list(self.transaction),
-                             [], [], cmdline)
+            tsis = list(self.transaction)
+            installonly = self._get_installonly_query()
+
+            for tsi in tsis:
+                tsi._propagate_reason(self.history, installonly)
+
+            tid = self.history.beg(rpmdbv, using_pkgs, tsis, cmdline)
             # write out our config and repo data to additional history info
-            self._store_config_in_history()
+            self._store_config_in_history(tid)
 
             if self.conf.comment:
                 # write out user provided comment to history info
-                self._store_comment_in_history(self.conf.comment)
+                self._store_comment_in_history(tid, self.conf.comment)
 
         if self.conf.reset_nice:
             onice = os.nice(0)
@@ -881,21 +920,20 @@ class Base(object):
 
     def _verify_transaction(self, verify_pkg_cb=None):
         """Check that the transaction did what was expected, and
-        propagate external yumdb information.  Output error messages
+        propagate external history information.  Output error messages
         if the transaction did not do what was expected.
 
         :param txmbr_cb: the callback for the rpm transaction members
         """
         # check to see that the rpmdb and the transaction roughly matches
-        # push package object metadata outside of rpmdb into yumdb
-        # delete old yumdb metadata entries
+        # push package object metadata outside of rpmdb into history
 
         # for each pkg in the transaction
         # if it is an install - see that the pkg is installed
         # if it is a remove - see that the pkg is no longer installed, provided
         #    that there is not also an install of this pkg in the transaction
         #    (reinstall)
-        # for any kind of install add from_repo to the yumdb, and the cmdline
+        # for any kind of install add from_repo to the history, and the cmdline
         # and the install reason
 
         total = self.transaction._total_package_count()
@@ -930,54 +968,44 @@ class Base(object):
                 continue
             po = installed[0]
             count = display_banner(rpo, count)
-            yumdb_info = self._yumdb.get_package(po)
-            yumdb_info.from_repo = rpo.repoid
-
-            yumdb_info.reason = tsi._propagated_reason(self._yumdb, self._get_installonly_query())
-            yumdb_info.releasever = self.conf.releasever
-            if hasattr(self, 'args') and self.args:
-                yumdb_info.command_line = ' '.join(self.args)
-            elif hasattr(self, 'cmds') and self.cmds:
-                yumdb_info.command_line = ' '.join(self.cmds)
-            csum = rpo.returnIdSum()
-            if csum is not None:
-                yumdb_info.checksum_type = str(csum[0])
-                yumdb_info.checksum_data = csum[1]
-
+            pkg_info = SwdbPkgData()
+            pkg_info.from_repo = rpo.repoid
             if rpo._from_cmdline:
                 try:
                     st = os.stat(rpo.localPkg())
                     lp_ctime = str(int(st.st_ctime))
-                    lp_mtime = str(int(st.st_mtime))
-                    yumdb_info.from_repo_revision = lp_ctime
-                    yumdb_info.from_repo_timestamp = lp_mtime
+                    lp_mtime = int(st.st_mtime)
+                    pkg_info.from_repo_revision = lp_ctime
+                    pkg_info.from_repo_timestamp = lp_mtime
                 except Exception:
                     pass
             elif hasattr(rpo.repo, 'repoXML'):
                 md = rpo.repo.repoXML
                 if md and md._revision is not None:
-                    yumdb_info.from_repo_revision = str(md._revision)
+                    pkg_info.from_repo_revision = str(md._revision)
                 if md:
-                    yumdb_info.from_repo_timestamp = str(md._timestamp)
+                    try:
+                        pkg_info.from_repo_timestamp = int(md._timestamp)
+                    except Exception:
+                        pass
 
             loginuid = misc.getloginuid()
             if tsi.op_type in (dnf.transaction.DOWNGRADE,
                                dnf.transaction.REINSTALL,
                                dnf.transaction.UPGRADE):
                 opo = tsi.erased
-                opo_yumdb_info = self._yumdb.get_package(opo)
-                if 'installed_by' in opo_yumdb_info:
-                    yumdb_info.installed_by = opo_yumdb_info.installed_by
+                opo_pkg_info = self.history.package_data(opo)
+                if opo_pkg_info and opo_pkg_info.installed_by:
+                    pkg_info.installed_by = opo_pkg_info.installed_by
                 if loginuid is not None:
-                    yumdb_info.changed_by = str(loginuid)
+                    pkg_info.changed_by = str(loginuid)
             elif loginuid is not None:
-                yumdb_info.installed_by = str(loginuid)
+                pkg_info.installed_by = str(loginuid)
 
             if self.conf.history_record:
-                self.history.sync_alldb(po)
+                self.history.sync_alldb(po, pkg_info)
 
-        just_installed = self.sack.query().\
-            filter(pkg=self.transaction.install_set)
+        just_installed = self.sack.query().filterm(pkg=self.transaction.install_set)
         for rpo in self.transaction.remove_set:
             installed = rpmdb_sack.query().installed()._nevra(
                 rpo.name, rpo.evr, rpo.arch)
@@ -988,11 +1016,9 @@ class Base(object):
                     logger.critical(msg, rpo)
                     count = display_banner(rpo, count)
                     continue
-            else:
-                self._yumdb.get_package(rpo).clean()
             count = display_banner(rpo, count)
         if self._record_history():
-            rpmdbv = rpmdb_sack._rpmdb_version(self._yumdb)
+            rpmdbv = rpmdb_sack._rpmdb_version(self.history)
             self.history.end(rpmdbv, 0)
         timer()
         self._trans_success = True
@@ -1015,7 +1041,7 @@ class Base(object):
         with lock:
             drpm = dnf.drpm.DeltaInfo(self.sack.query().installed(),
                                       progress, self.conf.deltarpm_percentage)
-            remote_pkgs = self._select_remote_pkgs(pkglist)
+            remote_pkgs, local_repository_pkgs = self._select_remote_pkgs(pkglist)
             self._add_tempfiles([pkg.localPkg() for pkg in remote_pkgs])
 
             payloads = [dnf.repo._pkg2payload(pkg, progress, drpm.delta_factory,
@@ -1086,14 +1112,15 @@ class Base(object):
             logger.info(msg, full / 1024 ** 2, real / 1024 ** 2, percent)
 
         if self.conf.destdir:
-            dnf.util.ensure_dir(self.conf.destdir)
-            for pkg in pkglist:
-                location = os.path.join(pkg.repo.pkgdir, os.path.basename(pkg.location))
+            for pkg in local_repository_pkgs:
+                location = os.path.join(pkg.repo.pkgdir, pkg.location)
                 shutil.copy(location, self.conf.destdir)
 
     def add_remote_rpms(self, path_list, strict=True):
         # :api
         pkgs = []
+        if not path_list:
+            return pkgs
         pkgs_error = []
         for path in path_list:
             if not os.path.exists(path) and '://' in path:
@@ -1105,7 +1132,7 @@ class Base(object):
             except IOError as e:
                 logger.warning(e)
                 pkgs_error.append(path)
-        self._setup_excludes_includes()
+        self._setup_excludes_includes(only_main=True)
         if pkgs_error and strict:
             raise IOError(_("Could not open: {}").format(' '.join(pkgs_error)))
         return pkgs
@@ -1229,7 +1256,7 @@ class Base(object):
             """Test whether given package originates from the repository."""
             if reponame is None:
                 return True
-            return self._yumdb.get_package(package).get('from_repo') == reponame
+            return self.history.repo(package) == reponame
 
         def pkgs_from_repo(packages):
             """Filter out the packages which do not originate from the repo."""
@@ -1335,7 +1362,7 @@ class Base(object):
 
         # packages to be removed by autoremove
         elif pkgnarrow == 'autoremove':
-            autoremove_q = query_for_repo(q)._unneeded(self.sack, self._yumdb)
+            autoremove_q = query_for_repo(q)._unneeded(self.history.swdb)
             autoremove = autoremove_q.run()
 
         # not in a repo but installed
@@ -1391,10 +1418,11 @@ class Base(object):
             return
 
         for pkg in query:
-            reason = self._yumdb.get_package(pkg).reason
-            self._yumdb.get_package(pkg).reason = 'dep'
+            reason = self.history.reason(pkg)
+            self.history.set_reason(pkg, SwdbReason.DEP)
             self._revert_reason.append((pkg, reason))
-        unneeded_pkgs = self.sack.query()._unneeded(self.sack, self._yumdb, debug_solver=False)
+        unneeded_pkgs = self.sack.query()._unneeded(self.history.swdb, debug_solver=False)
+
         remove_packages = query.intersection(unneeded_pkgs)
         if remove_packages:
             sltr = dnf.selector.Selector(self.sack)
@@ -1405,70 +1433,73 @@ class Base(object):
         trans = self._comps_trans
         basearch = self.conf.substitutions['basearch']
 
-        def cond_check(pkg):
-            if not pkg.requires:
-                return True
-            installed = self.sack.query().installed().filter(name=pkg.requires).run()
-            return len(installed) > 0 or \
-                pkg.requires in (pkg.name for pkg in self._goal._installs) or \
-                pkg.requires in [pkg.name for pkg in trans.install]
-
-        def trans_upgrade(query, remove_query):
+        def trans_upgrade(query, remove_query, comps_pkg):
             sltr = dnf.selector.Selector(self.sack)
             sltr.set(pkg=query)
             self._goal.upgrade(select=sltr)
             return remove_query
 
-        def trans_install(query, remove_query):
+        def trans_install(query, remove_query, comps_pkg):
             if self.conf.multilib_policy == "all":
-                self._install_multiarch(query, strict=False)
+                if not comps_pkg.requires:
+                    self._install_multiarch(query, strict=False)
+                else:
+                    # it installs only one arch for conditional packages
+                    installed_query = query.installed().apply()
+                    if installed_query:
+                        for pkg in installed_query:
+                            _msg_installed(pkg)
+                    sltr = dnf.selector.Selector(self.sack)
+                    sltr.set(provides="({} if {})".format(comps_pkg.name, comps_pkg.requires))
+                    self._goal.install(select=sltr, optional=True)
+
             else:
                 sltr = dnf.selector.Selector(self.sack)
-                sltr.set(pkg=query)
+                if comps_pkg.requires:
+                    sltr.set(provides="({} if {})".format(comps_pkg.name, comps_pkg.requires))
+                else:
+                    sltr.set(pkg=query)
                 self._goal.install(select=sltr, optional=True)
             return remove_query
 
-        def trans_remove(query, remove_query):
+        def trans_remove(query, remove_query, comps_pkg):
             remove_query = remove_query.union(query)
             return remove_query
 
-        remove_query = self.sack.query().filter(empty=True)
+        remove_query = self.sack.query().filterm(empty=True)
         attr_fn = ((trans.install, trans_install),
                    (trans.upgrade, trans_upgrade),
                    (trans.remove, trans_remove))
 
         for (attr, fn) in attr_fn:
-            for pkg in attr:
-                query_args = {'name': pkg.name}
-                if (pkg.basearchonly):
+            for comps_pkg in attr:
+                query_args = {'name': comps_pkg.name}
+                if (comps_pkg.basearchonly):
                     query_args.update({'arch': basearch})
-                q = self.sack.query().filter(**query_args).apply()
+                q = self.sack.query().filterm(**query_args).apply()
                 if not q:
-                    package_string = pkg.name
-                    if pkg.basearchonly:
+                    package_string = comps_pkg.name
+                    if comps_pkg.basearchonly:
                         package_string += '.' + basearch
                     logger.warning(_('No match for group package "{}"').format(package_string))
                     continue
-                # a conditional package with unsatisfied requiremensts
-                if not cond_check(pkg):
-                    continue
-                q = q.filter(arch__neq="src")
-                remove_query = fn(q, remove_query)
-                self._goal.group_members.add(pkg.name)
+                q.filterm(arch__neq="src")
+                remove_query = fn(q, remove_query, comps_pkg)
+                self._goal.group_members.add(comps_pkg.name)
 
         self._remove_if_unneeded(remove_query)
 
     def _build_comps_solver(self):
         def reason_fn(pkgname):
-            q = self.sack.query().installed().filter(name=pkgname)
+            q = self.sack.query().installed().filterm(name=pkgname)
             if not q:
                 return None
             try:
-                return self._yumdb.get_package(q[0]).reason
+                return self.history.reason(q[0])
             except AttributeError:
-                return 'unknown'
+                return SwdbReason.UNKNOWN
 
-        return dnf.comps.Solver(self._group_persistor, self._comps, reason_fn)
+        return dnf.comps.Solver(self.history.group, self._comps, reason_fn)
 
     def environment_install(self, env_id, types, exclude=None, strict=True):
         solver = self._build_comps_solver()
@@ -1508,7 +1539,7 @@ class Base(object):
         """
         def _pattern_to_pkgname(pattern):
             if dnf.util.is_glob_pattern(pattern):
-                q = self.sack.query().filter(name__glob=pattern)
+                q = self.sack.query().filterm(name__glob=pattern)
                 return map(lambda p: p.name, q)
             else:
                 return (pattern,)
@@ -1530,7 +1561,7 @@ class Base(object):
         return self._add_comps_trans(trans)
 
     def env_group_install(self, patterns, types, strict=True):
-        q = CompsQuery(self.comps, self._group_persistor,
+        q = CompsQuery(self.comps, self.history.group,
                        CompsQuery.ENVIRONMENTS | CompsQuery.GROUPS,
                        CompsQuery.AVAILABLE | CompsQuery.INSTALLED)
         cnt = 0
@@ -1547,7 +1578,6 @@ class Base(object):
             for env_id in res.environments:
                 cnt += self.environment_install(env_id, types, strict=strict)
         if not done and strict:
-            self._group_persistor._rollback()
             raise dnf.exceptions.Error(_('Nothing to do.'))
         return cnt
 
@@ -1557,7 +1587,7 @@ class Base(object):
         return self._add_comps_trans(trans)
 
     def env_group_remove(self, patterns):
-        q = CompsQuery(self.comps, self._group_persistor,
+        q = CompsQuery(self.comps, self.history.group,
                        CompsQuery.ENVIRONMENTS | CompsQuery.GROUPS,
                        CompsQuery.INSTALLED)
         try:
@@ -1573,7 +1603,7 @@ class Base(object):
         return cnt
 
     def env_group_upgrade(self, patterns):
-        q = CompsQuery(self.comps, self._group_persistor,
+        q = CompsQuery(self.comps, self.history.group,
                        CompsQuery.GROUPS | CompsQuery.ENVIRONMENTS,
                        CompsQuery.INSTALLED)
         res = q.get(*patterns)
@@ -1643,12 +1673,12 @@ class Base(object):
         """Mark package(s) given by pkg_spec and reponame for installation."""
 
         subj = dnf.subject.Subject(pkg_spec)
-        solution = subj._get_nevra_solution(self.sack, forms=forms)
+        solution = subj.get_best_solution(self.sack, forms=forms)
 
         if self.conf.multilib_policy == "all" or subj._is_arch_specified(solution):
-            q = solution['query'].filter(arch__neq="src")
+            q = solution['query'].filterm(arch__neq="src")
             if reponame is not None:
-                q = q.filter(reponame=reponame)
+                q.filterm(reponame=reponame)
             if not q:
                 raise dnf.exceptions.PackageNotFoundError(
                     _('no package matched'), pkg_spec)
@@ -1675,7 +1705,7 @@ class Base(object):
             msg = 'downgrade_package() for an installed package.'
             raise NotImplementedError(msg)
 
-        q = self.sack.query().installed().filter(name=pkg.name, arch=[pkg.arch, "noarch"])
+        q = self.sack.query().installed().filterm(name=pkg.name, arch=[pkg.arch, "noarch"])
         if not q:
             msg = _("Package %s not installed, cannot downgrade it.")
             logger.warning(msg, pkg.name)
@@ -1683,7 +1713,7 @@ class Base(object):
         elif sorted(q)[0] > pkg:
             sltr = dnf.selector.Selector(self.sack)
             sltr.set(pkg=[pkg])
-            self._goal.downgrade_to(select=sltr, optional=(not strict))
+            self._goal.install(select=sltr, optional=(not strict))
             return 1
         else:
             msg = _("Package %s of lower version already installed, "
@@ -1706,7 +1736,7 @@ class Base(object):
         return 1
 
     def package_reinstall(self, pkg):
-        if self.sack.query().installed().filter(nevra=str(pkg)):
+        if self.sack.query().installed().filterm(name=pkg.name, evr=pkg.evr, arch=pkg.arch):
             self._goal.install(pkg)
             return 1
         msg = _("Package %s not installed, cannot reinstall it.")
@@ -1728,7 +1758,7 @@ class Base(object):
             logger.info(msg, pkg.location)
             return 0
 
-        q = self.sack.query().installed().filter(name=pkg.name, arch=[pkg.arch, "noarch"])
+        q = self.sack.query().installed().filterm(name=pkg.name, arch=[pkg.arch, "noarch"])
         if not q:
             msg = _("Package %s not installed, cannot update it.")
             logger.warning(msg, pkg.name)
@@ -1747,7 +1777,7 @@ class Base(object):
     def upgrade(self, pkg_spec, reponame=None):
         # :api
         subj = dnf.subject.Subject(pkg_spec)
-        solution = subj._get_nevra_solution(self.sack)
+        solution = subj.get_best_solution(self.sack)
         q = solution["query"]
         if q:
             wildcard = dnf.util.is_glob_pattern(pkg_spec)
@@ -1755,8 +1785,8 @@ class Base(object):
             # only solution with nevra.name provide packages with same name
             if not wildcard and solution['nevra'] and solution['nevra'].name:
                 installed = self.sack.query().installed()
-                pkg_name = q[0].name
-                installed = installed.filter(name=pkg_name).apply()
+                pkg_name = solution['nevra'].name
+                installed.filterm(name=pkg_name).apply()
                 if not installed:
                     msg = _('Package %s available, but not installed.')
                     logger.warning(msg, pkg_name)
@@ -1767,15 +1797,17 @@ class Base(object):
                         msg = _('Package %s available, but installed for different architecture.')
                         logger.warning(msg, "{}.{}".format(pkg_name, solution['nevra'].arch))
 
-            if solution['nevra'] and solution['nevra']._has_just_name() and self.conf.obsoletes:
-                obsoletes = self.sack.query().filter(obsoletes=q.installed())
-                q = q.upgrades()
+            if self.conf.obsoletes and solution['nevra'] and solution['nevra'].has_just_name():
+                obsoletes = self.sack.query().filterm(obsoletes=q.installed())
+                # provide only available packages to solver otherwise selection of available
+                # possibilities will be ignored
+                q = q.available()
                 # add obsoletes into transaction
                 q = q.union(obsoletes)
             else:
-                q = q.upgrades()
+                q = q.available()
             if reponame is not None:
-                q = q.filter(reponame=reponame)
+                q.filterm(reponame=reponame)
             q = self._merge_update_filters(q, pkg_spec=pkg_spec)
             if q:
                 sltr = dnf.selector.Selector(self.sack)
@@ -1790,12 +1822,14 @@ class Base(object):
         if reponame is None and not self._update_security_filters:
             self._goal.upgrade_all()
         else:
-            q = self.sack.query().upgrades()
+            # provide only available packages to solver otherwise selection of available
+            # possibilities will be ignored
+            q = self.sack.query().available()
             # add obsoletes into transaction
             if self.conf.obsoletes:
-                q = q.union(self.sack.query().filter(obsoletes=self.sack.query().installed()))
+                q = q.union(self.sack.query().filterm(obsoletes=self.sack.query().installed()))
             if reponame is not None:
-                q = q.filter(reponame=reponame)
+                q.filterm(reponame=reponame)
             q = self._merge_update_filters(q)
             sltr = dnf.selector.Selector(self.sack)
             sltr.set(pkg=q)
@@ -1847,7 +1881,7 @@ class Base(object):
                 raise dnf.exceptions.Error(_('No packages marked for removal.'))
 
         else:
-            pkgs = self.sack.query()._unneeded(self.sack, self._yumdb,
+            pkgs = self.sack.query()._unneeded(self.history.swdb,
                                                debug_solver=self.conf.debug_solver)
             for pkg in pkgs:
                 self.package_remove(pkg)
@@ -1860,7 +1894,7 @@ class Base(object):
         installed = [
             pkg for pkg in matches.installed()
             if reponame is None or
-            self._yumdb.get_package(pkg).get('from_repo') == reponame]
+            self.history.repo(pkg) == reponame]
         if not installed:
             raise dnf.exceptions.PackagesNotInstalledError(
                 'no package matched', pkg_spec)
@@ -1877,13 +1911,13 @@ class Base(object):
         installed_pkgs = [
             pkg for pkg in q.installed()
             if old_reponame is None or
-            self._yumdb.get_package(pkg).get('from_repo') == old_reponame]
+            self.history.repo(pkg) == old_reponame]
 
         available_q = q.available()
         if new_reponame is not None:
-            available_q = available_q.filter(reponame=new_reponame)
+            available_q.filterm(reponame=new_reponame)
         if new_reponame_neq is not None:
-            available_q = available_q.filter(reponame__neq=new_reponame_neq)
+            available_q.filterm(reponame__neq=new_reponame_neq)
         available_nevra2pkg = dnf.query._per_nevra_dict(available_q)
 
         if not installed_pkgs:
@@ -1932,31 +1966,31 @@ class Base(object):
         done = 0
         available_pkgs = q.available()
         available_pkg_names = list(available_pkgs._name_dict().keys())
-        q_installed = self.sack.query().installed().filter(name=available_pkg_names)
+        q_installed = self.sack.query().installed().filterm(name=available_pkg_names)
         if len(q_installed) == 0:
             msg = _('Packages for argument %s available, but not installed.') % pkg_spec
             raise dnf.exceptions.PackagesNotInstalledError(msg, pkg_spec, available_pkgs)
         for pkg_name in q_installed._name_dict().keys():
-            downgrade_pkgs = available_pkgs.downgrades().latest().filter(name=pkg_name)
+            downgrade_pkgs = available_pkgs.downgrades().filter(name=pkg_name)
             if not downgrade_pkgs:
                 msg = _("Package %s of lowest version already installed, cannot downgrade it.")
                 logger.warning(msg, pkg_name)
                 continue
             sltr = dnf.selector.Selector(self.sack)
             sltr.set(pkg=downgrade_pkgs)
-            self._goal.downgrade_to(select=sltr, optional=(not strict))
+            self._goal.install(select=sltr, optional=(not strict))
             done = 1
         return done
 
     def provides(self, provides_spec):
-        providers = self.sack.query().filter(file__glob=provides_spec)
+        providers = self.sack.query().filterm(file__glob=provides_spec)
         if providers:
             return providers, [provides_spec]
         providers = dnf.query._by_provides(self.sack, provides_spec)
         if providers:
             return providers, [provides_spec]
         binary_provides = [prefix + provides_spec for prefix in ['/usr/bin/', '/usr/sbin/']]
-        return self.sack.query().filter(file__glob=binary_provides), binary_provides
+        return self.sack.query().filterm(file__glob=binary_provides), binary_provides
 
     def _history_undo_operations(self, operations, first_trans, rollback=False):
         """Undo the operations on packages by their NEVRAs.
@@ -2071,16 +2105,14 @@ class Base(object):
         """
         if not self._update_security_filters or not q:
             return q
-        assert len(self._update_security_filters.keys()) == 1
-        for key, filters in self._update_security_filters.items():
-            assert len(filters) > 0
-            t = filters[0]
-            for query in filters[1:]:
-                t = t.union(query)
-            del self._update_security_filters[key]
-            self._update_security_filters['minimal'] = [t]
-            t = q.intersection(t)
-            if len(t) == 0 and warning:
+        merged_queries = self._update_security_filters[0]
+        for query in self._update_security_filters[1:]:
+            merged_queries = merged_queries.union(query)
+
+        self._update_security_filters = [merged_queries]
+        merged_queries = q.intersection(merged_queries)
+        if not merged_queries:
+            if warning:
                 count = len(q._name_dict().keys())
                 if pkg_spec is None:
                     msg1 = _("No security updates needed, but {} update "
@@ -2094,22 +2126,7 @@ class Base(object):
                     msg2 = _('No security updates needed for "{}", but {} '
                              'updates available').format(pkg_spec, count)
                     logger.warning(P_(msg1, msg2, count))
-                return t
-            if key == 'minimal':
-                return t
-            else:
-                # return all packages with eq or higher version
-                latest_pkgs = None
-                pkgs_dict = t._name_dict()
-                for pkg_list in pkgs_dict.values():
-                    pkg_list.sort()
-                    pkg = pkg_list[0]
-                    if latest_pkgs is None:
-                        latest_pkgs = q.filter(name=pkg.name, evr__gte=pkg.evr)
-                    else:
-                        latest_pkgs = latest_pkgs.union(q.filter(
-                            name=pkg.name, evr__gte=pkg.evr))
-                return latest_pkgs
+        return merged_queries
 
     def _get_key_for_package(self, po, askcb=None, fullaskcb=None):
         """Retrieve a key for a package. If needed, use the given
@@ -2216,16 +2233,16 @@ class Base(object):
 
         return results
 
-    def _store_config_in_history(self):
-        self.history.write_addon_data('config-main', self.conf.dump())
+    def _store_config_in_history(self, tid):
+        self.history.addon_data.write(tid, 'config-main', self.conf.dump())
         myrepos = ''
         for repo in self.repos.iter_enabled():
             myrepos += repo.dump()
             myrepos += '\n'
-        self.history.write_addon_data('config-repos', myrepos)
+        self.history.addon_data.write(tid, 'config-repos', myrepos)
 
-    def _store_comment_in_history(self, comment):
-        self.history.write_addon_data('transaction-comment', comment)
+    def _store_comment_in_history(self, tid, comment):
+        self.history.addon_data.write(tid, 'transaction-comment', comment)
 
     def urlopen(self, url, repo=None, mode='w+b', **kwargs):
         # :api
@@ -2243,9 +2260,10 @@ class Base(object):
 
     def _report_icase_hint(self, pkg_spec):
         subj = dnf.subject.Subject(pkg_spec, ignore_case=True)
-        solution = subj._get_nevra_solution(self.sack, with_nevra=True, with_provides=False,
-                                            with_filenames=False)
-        if solution['query'] and solution['nevra'] and solution['nevra'].name:
+        solution = subj.get_best_solution(self.sack, with_nevra=True, with_provides=False,
+                                          with_filenames=False)
+        if solution['query'] and solution['nevra'] and solution['nevra'].name and \
+                pkg_spec != solution['nevra'].name:
             logger.info(_("  * Maybe you meant: {}").format(solution['query'][0].name))
 
     def _select_remote_pkgs(self, install_pkgs):
@@ -2256,11 +2274,18 @@ class Base(object):
         :return: list of remote pkgs
         """
         def _verification_of_packages(pkg_list, logger_msg):
+            all_packages_verified = True
             for pkg in pkg_list:
-                if not pkg.verifyLocalPkg():
-                    logger.critical(logger_msg)
-                    return False
-            return True
+                pkg_successfully_verified = False
+                try:
+                    pkg_successfully_verified = pkg.verifyLocalPkg()
+                except Exception as e:
+                    logger.critical(str(e))
+                if pkg_successfully_verified is not True:
+                    logger.critical(logger_msg.format(pkg, pkg.reponame))
+                    all_packages_verified = False
+
+            return all_packages_verified
 
         remote_pkgs = []
         local_repository_pkgs = []
@@ -2270,38 +2295,21 @@ class Base(object):
                     local_repository_pkgs.append(pkg)
             else:
                 remote_pkgs.append(pkg)
-        error = False
 
-        try:
-            msg = _('Package "{}" from local repository "{}" has incorrect checksum')
-            if not _verification_of_packages(local_repository_pkgs, msg.format(pkg, pkg.reponame)):
-                error = True
-        except Exception as e:
-            logger.critical(str(e))
-            error = True
-
-        if error:
+        msg = _('Package "{}" from local repository "{}" has incorrect checksum')
+        if not _verification_of_packages(local_repository_pkgs, msg):
             raise dnf.exceptions.Error(
                 _("Some packages from local repository have incorrect checksum"))
 
         if self.conf.cacheonly:
-            try:
-                msg = _('Package "{}" from repository "{}" has incorrect checksum')
-                if not _verification_of_packages(remote_pkgs, msg.format(pkg, pkg.reponame)):
-                    error = True
-            except Exception as e:
-                logger.debug(str(e))
-                msg = _('Package "{}" from repository "{}" has invalid cache')
-                logger.critical(msg.format(pkg, pkg.reponame))
-                error = True
-
-            if error:
+            msg = _('Package "{}" from repository "{}" has incorrect checksum')
+            if not _verification_of_packages(remote_pkgs, msg):
                 raise dnf.exceptions.Error(
                     _('Some packages have invalid cache, but cannot be downloaded due to '
                       '"--cacheonly" option'))
             remote_pkgs = []
 
-        return remote_pkgs
+        return remote_pkgs, local_repository_pkgs
 
 
 def _msg_installed(pkg):

@@ -34,7 +34,7 @@ class ReinstallCommand(commands.Command):
     """A class containing methods needed by the cli to execute the reinstall command.
     """
 
-    aliases = ('reinstall', 'rei', 'ri')
+    aliases = ('reinstall',)
     summary = _('reinstall a package')
 
     @staticmethod
@@ -55,7 +55,8 @@ class ReinstallCommand(commands.Command):
         demands.resolving = True
         demands.root_user = True
         commands._checkGPGKey(self.base, self.cli)
-        commands._checkEnabledRepo(self.base, self.opts.filenames)
+        if not self.opts.filenames:
+            commands._checkEnabledRepo(self.base)
 
     def run(self):
 
@@ -84,9 +85,9 @@ class ReinstallCommand(commands.Command):
             except dnf.exceptions.PackagesNotAvailableError as err:
                 for pkg in err.packages:
                     xmsg = ''
-                    yumdb_info = self.base._yumdb.get_package(pkg)
-                    if 'from_repo' in yumdb_info:
-                        xmsg = _(' (from %s)') % yumdb_info.from_repo
+                    pkgrepo = self.base.history.repo(pkg)
+                    if pkgrepo:
+                        xmsg = _(' (from %s)') % pkgrepo
                     msg = _('Installed package %s%s not available.')
                     logger.info(msg, self.base.output.term.bold(pkg),
                                 xmsg)
@@ -96,4 +97,4 @@ class ReinstallCommand(commands.Command):
                 done = True
 
         if not done:
-            raise dnf.exceptions.Error(_('Nothing to do.'))
+            raise dnf.exceptions.Error(_('No packages marked for reinstall.'))

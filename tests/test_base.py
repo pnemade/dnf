@@ -1,4 +1,6 @@
-# Copyright (C) 2012-2016 Red Hat, Inc.
+# -*- coding: utf-8 -*-
+
+# Copyright (C) 2012-2018 Red Hat, Inc.
 #
 # This copyrighted material is made available to anyone wishing to use,
 # modify, copy, or redistribute it subject to the terms and conditions of
@@ -17,24 +19,39 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
-from tests import support
-from tests.support import mock
-from tests.support import TestCase
 
 import binascii
+import itertools
+import re
+
+import hawkey
+import rpm
+from hawkey import SwdbReason, SwdbPkg, SwdbPkgData, SwdbItem
+
 import dnf
 import dnf.exceptions
 import dnf.package
 import dnf.subject
 import dnf.transaction
-import hawkey
-import itertools
-import re
-import rpm
 
-class BaseTest(support.TestCase):
+import tests.support
+from tests.support import mock
+
+
+class BaseTest(tests.support.TestCase):
+
+    @staticmethod
+    def _setup_packages(history):
+        pkg1 = SwdbPkg.new("pepper", 0, "20", "0", "x86_64", "987abc", "sha256", SwdbItem.RPM)
+        pkg_data1 = SwdbPkgData()
+        pid = history.add_package(pkg1)
+        history.swdb.trans_data_beg(0, pid, SwdbReason.USER, "Installed", False)
+        history.update_package_data(pid, 0, pkg_data1)
+
     def test_instance(self):
-        base = support.Base()
+        base = tests.support.MockBase()
+        self.assertIsNotNone(base)
+        base.close()
 
     @mock.patch('dnf.rpm.detect_releasever', lambda x: 'x')
     @mock.patch('dnf.util.am_i_root', lambda: True)
@@ -55,10 +72,11 @@ class BaseTest(support.TestCase):
         self.assertIsNotNone(reg.match(base.conf.cachedir))
 
     def test_reset(self):
-        base = support.MockBase('main')
+        base = tests.support.MockBase('main')
         base.reset(sack=True, repos=False)
         self.assertIsNone(base._sack)
         self.assertLength(base.repos, 1)
+        base.close()
 
     @mock.patch('dnf.rpm.transaction.TransactionWrapper')
     def test_ts(self, mock_ts):
@@ -79,85 +97,93 @@ class BaseTest(support.TestCase):
 
     def test_iter_userinstalled(self):
         """Test iter_userinstalled with a package installed by the user."""
-        base = support.Base()
-        base._sack = support.mock_sack('main')
-        base._priv_yumdb = support.MockYumDB()
+        base = tests.support.MockBase()
+        self._setup_packages(base.history)
+        base._sack = tests.support.mock_sack('main')
         pkg, = base.sack.query().installed().filter(name='pepper')
-        base._yumdb.get_package(pkg).get = {'reason': 'user', 'from_repo': 'main'}.get
-
-        iterator = base.iter_userinstalled()
-
-        self.assertEqual(next(iterator), pkg)
-        self.assertRaises(StopIteration, next, iterator)
+        base.history.set_repo(pkg, "main")
+        base.history.set_reason(pkg, SwdbReason.USER)
+        self.assertEqual(base.history.user_installed(pkg), True)
+        self.assertEqual(base.history.repo(pkg), 'main')
+        base.close()
 
     def test_iter_userinstalled_badfromrepo(self):
         """Test iter_userinstalled with a package installed from a bad repository."""
-        base = support.Base()
-        base._sack = support.mock_sack('main')
-        base._priv_yumdb = support.MockYumDB()
-
+        base = tests.support.MockBase()
+        base._sack = tests.support.mock_sack('main')
+        self._setup_packages(base.history)
         pkg, = base.sack.query().installed().filter(name='pepper')
-        base._yumdb.get_package(pkg).get = {'reason': 'user', 'from_repo': 'anakonda'}.get
-
-        iterator = base.iter_userinstalled()
-
-        self.assertRaises(StopIteration, next, iterator)
+        base.history.set_repo(pkg, "anakonda")
+        base.history.set_reason(pkg, SwdbReason.USER)
+        self.assertEqual(base.history.user_installed(pkg), False)
+        self.assertEqual(base.history.repo(pkg), 'anakonda')
+        base.close()
 
     def test_iter_userinstalled_badreason(self):
         """Test iter_userinstalled with a package installed for a wrong reason."""
-        base = support.Base()
-        base._sack = support.mock_sack('main')
-        base._priv_yumdb = support.MockYumDB()
-
+        base = tests.support.MockBase()
+        base._sack = tests.support.mock_sack('main')
+        self._setup_packages(base.history)
         pkg, = base.sack.query().installed().filter(name='pepper')
-        base._yumdb.get_package(pkg).get = {'reason': 'dep', 'from_repo': 'main'}.get
-
-        iterator = base.iter_userinstalled()
-
-        self.assertRaises(StopIteration, next, iterator)
+        base.history.set_reason(pkg, SwdbReason.DEP)
+        base.history.set_repo(pkg, "main")
+        self.assertEqual(base.history.user_installed(pkg), False)
+        self.assertEqual(base.history.repo(pkg), 'main')
+        base.close()
 
     def test_translate_comps_pkg_types(self):
-        base = support.Base()
+        base = tests.support.MockBase()
         num = base._translate_comps_pkg_types(('mandatory', 'optional'))
         self.assertEqual(num, 12)
+        base.close()
 
-class MockBaseTest(TestCase):
+
+class MockBaseTest(tests.support.DnfBaseTestCase):
     """Test the Base methods that need a Sack."""
 
-    def setUp(self):
-        self.base = support.MockBase("main")
+    REPOS = ["main"]
 
     def test_add_remote_rpms(self):
-        pkgs = self.base.add_remote_rpms([support.TOUR_50_PKG_PATH])
+        pkgs = self.base.add_remote_rpms([tests.support.TOUR_50_PKG_PATH])
         self.assertIsInstance(pkgs[0], dnf.package.Package)
         self.assertEqual(pkgs[0].name, 'tour')
 
-class BuildTransactionTest(support.TestCase):
+
+class BuildTransactionTest(tests.support.DnfBaseTestCase):
+
+    REPOS = ["updates"]
+
     def test_resolve(self):
-        base = support.MockBase("updates")
-        base.upgrade("pepper")
-        self.assertTrue(base.resolve())
-        base._ds_callback.assert_has_calls([mock.call.start(),
-                                            mock.call.pkg_added(mock.ANY, 'ud'),
-                                            mock.call.pkg_added(mock.ANY, 'u')])
-        self.assertLength(base.transaction, 1)
+        self.base.upgrade("pepper")
+        self.assertTrue(self.base.resolve())
+        self.base._ds_callback.assert_has_calls([
+            mock.call.start(),
+            mock.call.pkg_added(mock.ANY, 'ud'),
+            mock.call.pkg_added(mock.ANY, 'u')
+        ])
+        self.assertLength(self.base.transaction, 1)
+
 
 # verify transaction test helpers
 HASH = "68e9ded8ea25137c964a638f12e9987c"
+
+
 def mock_sack_fn():
-    return (lambda base: support.TestSack(support.REPO_DIR, base))
+    return (lambda base: tests.support.TestSack(tests.support.REPO_DIR, base))
+
 
 @property
 def ret_pkgid(self):
     return self.name
 
-class VerifyTransactionTest(TestCase):
-    def setUp(self):
-        self.base = support.MockBase("main")
-        self.base._transaction = dnf.transaction.Transaction()
+
+class VerifyTransactionTest(tests.support.DnfBaseTestCase):
+
+    REPOS = ["main"]
+    INIT_TRANSACTION = True
 
     @mock.patch('dnf.sack._build_sack', new_callable=mock_sack_fn)
-    @mock.patch('dnf.package.Package._pkgid', ret_pkgid) # neutralize @property
+    @mock.patch('dnf.package.Package._pkgid', ret_pkgid)  # neutralize @property
     def test_verify_transaction(self, unused_build_sack):
         # we don't simulate the transaction itself here, just "install" what is
         # already there and "remove" what is not.
@@ -167,35 +193,40 @@ class VerifyTransactionTest(TestCase):
         removed_pkg = self.base.sack.query().available().filter(
             name="mrkite")[0]
 
+        pkg = self.base.history.ipkg_to_pkg(new_pkg)
+        pid = self.base.history.add_package(pkg)
+        pkg_data = SwdbPkgData()
+        self.base.history.swdb.trans_data_beg(0, pid, SwdbReason.USER, "Installed", False)
+        self.base.history.update_package_data(pid, 0, pkg_data)
+        self.base.history.set_repo(new_pkg, 'main')
+
         self.base.transaction.add_install(new_pkg, [])
         self.base.transaction.add_erase(removed_pkg)
         self.base._verify_transaction()
-        # mock is designed so this returns the exact same mock object it did
-        # during the method call:
-        yumdb_info = self.base._yumdb.get_package(new_pkg)
-        self.assertEqual(yumdb_info.from_repo, 'main')
-        self.assertEqual(yumdb_info.reason, 'unknown')
-        self.assertEqual(yumdb_info.releasever, 'Fedora69')
-        self.assertEqual(yumdb_info.checksum_type, 'md5')
-        self.assertEqual(yumdb_info.checksum_data, HASH)
-        self.base._yumdb.assertLength(2)
 
-class InstallReasonTest(support.ResultTestCase):
-    def setUp(self):
-        self.base = support.MockBase("main")
+        pkg = self.base.history.package(new_pkg)
+        self.assertEqual(pkg.ui_from_repo(), '@main')
+        self.assertEqual(pkg.get_reason(), SwdbReason.USER)
+        self.assertEqual(pkg.checksum_type, 'md5')
+        self.assertEqual(pkg.checksum_data, HASH)
+
+
+class InstallReasonTest(tests.support.ResultTestCase):
+
+    REPOS = ["main"]
 
     def test_reason(self):
         self.base.install("mrkite")
         self.base.resolve()
         new_pkgs = self.base._transaction._get_items(dnf.transaction.INSTALL)
         pkg_reasons = [(tsi.installed.name, tsi.reason) for tsi in new_pkgs]
-        self.assertCountEqual([("mrkite", "user"), ("trampoline", "dep")],
+        self.assertCountEqual([("mrkite", SwdbReason.USER), ("trampoline", SwdbReason.DEP)],
                               pkg_reasons)
 
-class InstalledMatchingTest(support.ResultTestCase):
-    def setUp(self):
-        self.base = support.MockBase("main")
-        self.sack = self.base.sack
+
+class InstalledMatchingTest(tests.support.ResultTestCase):
+
+    REPOS = ["main"]
 
     def test_query_matching(self):
         subj = dnf.subject.Subject("pepper")
@@ -211,30 +242,30 @@ class InstalledMatchingTest(support.ResultTestCase):
         self.assertCountEqual(['pepper-20-0.x86_64'], map(str, inst))
 
 
-class CompsTest(support.TestCase):
+class CompsTest(tests.support.DnfBaseTestCase):
     # Also see test_comps.py
+
+    REPOS = ["main"]
+    COMPS = True
 
     # prevent creating the gen/ directory:
     @mock.patch('dnf.yum.misc.repo_gen_decompress', lambda x, y: x)
     def test_read_comps(self):
-        base = support.MockBase("main")
-        base.repos['main'].metadata = mock.Mock(_comps_fn=support.COMPS_PATH)
-        base.read_comps()
-        groups = base.comps.groups
-        self.assertLength(groups, support.TOTAL_GROUPS)
+        self.assertLength(self.base.comps.groups, tests.support.TOTAL_GROUPS)
 
     def test_read_comps_disabled(self):
-        base = support.MockBase("main")
-        base.repos['main'].enablegroups = False
-        self.assertEmpty(base.read_comps())
+        self.base.repos['main'].enablegroups = False
+        self.assertEmpty(self.base.read_comps())
 
-class Goal2TransactionTest(support.TestCase):
+
+class Goal2TransactionTest(tests.support.DnfBaseTestCase):
+
+    REPOS = ["main", "updates"]
+
     def test_upgrade(self):
-        base = support.MockBase("main", "updates")
-        base.upgrade("hole")
-        goal = base._goal
-        self.assertTrue(base._run_hawkey_goal(goal, allow_erasing=False))
-        ts = base._goal2transaction(goal)
+        self.base.upgrade("hole")
+        self.assertTrue(self.base._run_hawkey_goal(self.goal, allow_erasing=False))
+        ts = self.base._goal2transaction(self.goal)
         self.assertLength(ts._tsis, 1)
         tsi = ts._tsis[0]
         self.assertCountEqual(map(str, tsi.installs()), ('hole-2-1.x86_64',))

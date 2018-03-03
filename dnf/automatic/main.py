@@ -195,6 +195,7 @@ def main(args):
                 logger.debug('Sleep for %s seconds', sleeper)
                 time.sleep(sleeper)
 
+            base.pre_configure_plugins()
             base.read_all_repos()
             base.configure_plugins()
             base.fill_sack()
@@ -229,7 +230,7 @@ def main(args):
 
 def upgrade(base, upgrade_type):
     if upgrade_type == 'security':
-        base._update_security_filters['upgrade'] = [base.sack.query().filter(
+        base._update_security_filters['upgrade'] = [base.sack.query().filterm(
             advisory_type='security')]
         base.upgrade_all()
     elif upgrade_type == 'default':

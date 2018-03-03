@@ -178,6 +178,9 @@ class ListAppendOption(ListOption):
 
     def _set(self, value, priority=PRIO_RUNTIME):
         """Append option's value"""
+        if value == '':
+            return super(ListAppendOption, self)._set(Value([], priority), priority)
+
         new = self._make_value(value, priority)
         if new.value is not None:
             if self._is_default():
@@ -631,7 +634,8 @@ class MainConf(BaseConfig):
             try:
                 cachedir = logdir = misc.getCacheDir()
             except (IOError, OSError) as e:
-                logger.critical(_('Could not set cachedir: %s'), ucd(e))
+                msg = _('Could not set cachedir: {}').format(ucd(e))
+                raise dnf.exceptions.Error(msg)
 
         self._add_option('debuglevel',
                          IntOption(2, range_min=0, range_max=10)) # :api
@@ -645,6 +649,7 @@ class MainConf(BaseConfig):
         self._add_option('pluginconfpath',
                          ListOption([dnf.const.PLUGINCONFPATH])) # :api
         self._add_option('persistdir', PathOption(dnf.const.PERSISTDIR)) # :api
+        self._add_option('transformdb', BoolOption(True))  # :api
         self._add_option('recent', IntOption(7, range_min=0))
         self._add_option('retries', PositiveIntOption(10, names_of_0=["0"]))
         self._add_option('reset_nice', BoolOption(True))
@@ -776,7 +781,6 @@ class MainConf(BaseConfig):
         # runtime only options
         self._add_option('downloadonly', BoolOption(False, runtimeonly=True))
         self._add_option('ignorearch', BoolOption(False))
-        self._add_option('cacheonly', BoolOption(False))
 
     @property
     def get_reposdir(self):

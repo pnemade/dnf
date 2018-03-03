@@ -1,4 +1,6 @@
-# Copyright (C) 2014-2016 Red Hat, Inc.
+# -*- coding: utf-8 -*-
+
+# Copyright (C) 2014-2018 Red Hat, Inc.
 #
 # This copyrighted material is made available to anyone wishing to use,
 # modify, copy, or redistribute it subject to the terms and conditions of
@@ -17,16 +19,19 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
+
+from hawkey import SwdbReason
+
 import dnf.goal
 import dnf.selector
+
 import tests.support
 
 
-class GoalTest(tests.support.TestCase):
-    def setUp(self):
-        base = tests.support.MockBase('main')
-        self.sack = base.sack
-        self.goal = dnf.goal.Goal(self.sack)
+class GoalTest(tests.support.DnfBaseTestCase):
+
+    REPOS = ['main']
+    INIT_SACK = True
 
     def test_get_reason(self):
         sltr = dnf.selector.Selector(self.sack)
@@ -34,41 +39,20 @@ class GoalTest(tests.support.TestCase):
         grp_sltr = dnf.selector.Selector(self.sack)
         grp_sltr.set(name='lotus')
 
-        goal = self.goal
-        goal.install(select=sltr)
-        goal.install(select=grp_sltr)
-        goal.group_members.add('lotus')
-        goal.run()
-        installs = goal.list_installs()
+        self.goal.install(select=sltr)
+        self.goal.install(select=grp_sltr)
+        self.goal.group_members.add('lotus')
+        self.goal.run()
+        installs = self.goal.list_installs()
         mrkite = [pkg for pkg in installs if pkg.name == 'mrkite'][0]
         lotus = [pkg for pkg in installs if pkg.name == 'lotus'][0]
         trampoline = [pkg for pkg in installs if pkg.name == 'trampoline'][0]
-        self.assertEqual(goal.get_reason(lotus), 'group')
-        self.assertEqual(goal.get_reason(mrkite), 'user')
-        self.assertEqual(goal.get_reason(trampoline), 'dep')
+        self.assertEqual(self.goal.get_reason(lotus), SwdbReason.GROUP)
+        self.assertEqual(self.goal.get_reason(mrkite), SwdbReason.USER)
+        self.assertEqual(self.goal.get_reason(trampoline), SwdbReason.DEP)
 
     def test_group_reason(self):
-        goal = self.goal
         hole = self.sack.query().filter(name='hole')[0]
-        goal.group_members.add('hole')
-        self.assertEqual('group', goal.group_reason(hole, 'unknown'))
-        self.assertEqual('dep', goal.group_reason(hole, 'dep'))
-
-    def test_push_userinstalled(self):
-        base = tests.support.MockBase('main')
-        base.conf.clean_requirements_on_remove = True
-        goal = self.goal
-        installed = base.sack.query().installed()
-        for pkg in installed:
-            base._yumdb.get_package(pkg).reason = 'dep'
-        pkg1 = installed.filter(name="pepper")[0]
-        base._yumdb.get_package(pkg1).reason = "user"
-        pkg2 = installed.filter(name="hole")[0]
-        base._yumdb.get_package(pkg2).reason = "unknown"
-        pkgs = installed.filter(name__neq=["pepper", "hole", "librita"]
-                               ).run()
-
-        # test:
-        goal.push_userinstalled(installed, base._yumdb)
-        goal.run()
-        self.assertEqual(goal.list_unneeded(), pkgs)
+        self.goal.group_members.add('hole')
+        self.assertEqual(SwdbReason.GROUP, self.goal.group_reason(hole, SwdbReason.GROUP))
+        self.assertEqual(SwdbReason.DEP, self.goal.group_reason(hole, SwdbReason.DEP))

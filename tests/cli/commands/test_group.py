@@ -1,4 +1,6 @@
-# Copyright (C) 2014-2016 Red Hat, Inc.
+# -*- coding: utf-8 -*-
+
+# Copyright (C) 2014-2018 Red Hat, Inc.
 #
 # This copyrighted material is made available to anyone wishing to use,
 # modify, copy, or redistribute it subject to the terms and conditions of
@@ -16,19 +18,20 @@
 #
 
 from __future__ import absolute_import
-from tests import support
-from dnf.comps import CompsQuery
-from dnf.cli.option_parser import OptionParser
 
 import dnf.cli.commands.group as group
 import dnf.comps
 import dnf.exceptions
+from dnf.comps import CompsQuery
+from dnf.cli.option_parser import OptionParser
+
+import tests.support
 
 
-class GroupCommandStaticTest(support.TestCase):
+class GroupCommandStaticTest(tests.support.TestCase):
 
     def test_canonical(self):
-        cmd = group.GroupCommand(support.mock.MagicMock())
+        cmd = group.GroupCommand(tests.support.mock.MagicMock())
 
         for args, out in [
                 (['grouplist', 'crack'], ['list', 'crack']),
@@ -43,44 +46,47 @@ class GroupCommandStaticTest(support.TestCase):
             self.assertEqual(cmd.opts.args, out[1:])
 
     def test_split_extcmds(self):
-        cmd = group.GroupCommand(support.mock.MagicMock())
+        cmd = group.GroupCommand(tests.support.mock.MagicMock())
         cmd.base.conf = dnf.conf.Conf()
-        support.command_run(cmd, ['install', 'crack'])
+        tests.support.command_run(cmd, ['install', 'crack'])
         cmd.base.env_group_install.assert_called_with(
             ['crack'], ('mandatory', 'default', 'conditional'),
             cmd.base.conf.strict)
 
 
-class GroupCommandTest(support.TestCase):
+class GroupCommandTest(tests.support.DnfBaseTestCase):
+
+    REPOS = ["main"]
+    COMPS = True
+    INIT_SACK = True
+
     def setUp(self):
-        base = support.MockBase("main")
-        base.read_mock_comps()
-        base.init_sack()
-        self.cmd = group.GroupCommand(base.mock_cli())
+        super(GroupCommandTest, self).setUp()
+        self.cmd = group.GroupCommand(self.base.mock_cli())
         self.parser = OptionParser()
 
     def test_environment_list(self):
         env_inst, env_avail = self.cmd._environment_lists(['sugar*'])
-        self.assertLength(env_inst, 1)
-        self.assertLength(env_avail, 0)
-        self.assertEqual(env_inst[0].name, 'Sugar Desktop Environment')
+        self.assertLength(env_inst, 0)
+        self.assertLength(env_avail, 1)
+        self.assertEqual(env_avail[0].name, 'Sugar Desktop Environment')
 
     def test_configure(self):
-        support.command_configure(self.cmd, ['remove', 'crack'])
+        tests.support.command_configure(self.cmd, ['remove', 'crack'])
         demands = self.cmd.cli.demands
         self.assertTrue(demands.allow_erasing)
         self.assertFalse(demands.freshest_metadata)
 
 
-class CompsQueryTest(support.TestCase):
+class CompsQueryTest(tests.support.DnfBaseTestCase):
 
-    def setUp(self):
-        (self.comps, self.prst) = support.mock_comps(True)
+    REPOS = []
+    COMPS = True
 
     def test_all(self):
         status_all = CompsQuery.AVAILABLE | CompsQuery.INSTALLED
         kinds_all = CompsQuery.ENVIRONMENTS | CompsQuery.GROUPS
-        q = CompsQuery(self.comps, self.prst, kinds_all, status_all)
+        q = CompsQuery(self.comps, self.persistor, kinds_all, status_all)
 
         res = q.get('sugar*', '*er*')
         self.assertCountEqual(res.environments,
@@ -88,14 +94,19 @@ class CompsQueryTest(support.TestCase):
         self.assertCountEqual(res.groups, ("Peppers", 'somerset'))
 
     def test_err(self):
-        q = CompsQuery(self.comps, self.prst, CompsQuery.ENVIRONMENTS,
+        q = CompsQuery(self.comps, self.persistor, CompsQuery.ENVIRONMENTS,
                        CompsQuery.AVAILABLE)
         with self.assertRaises(dnf.exceptions.CompsError):
             q.get('*er*')
 
     def test_installed(self):
-        q = CompsQuery(self.comps, self.prst, CompsQuery.GROUPS,
+        q = CompsQuery(self.comps, self.persistor, CompsQuery.GROUPS,
                        CompsQuery.INSTALLED)
+        self.base.read_mock_comps(False)
+        grp = self.base.comps.group_by_pattern('somerset')
+        self.base.group_install(grp.id, ('mandatory',))
+
         res = q.get('somerset')
         self.assertEmpty(res.environments)
-        self.assertCountEqual(res.groups, ('somerset',))
+        grp_ids = [grp.name_id for grp in res.groups]
+        self.assertCountEqual(grp_ids, ('somerset',))

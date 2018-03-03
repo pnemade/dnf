@@ -1,7 +1,16 @@
-%global hawkey_version 0.9.4
+%global hawkey_version 0.13.0
 %global librepo_version 1.7.19
 %global libcomps_version 0.1.8
-%global rpm_version 4.13.0-0.rc1.29
+%global rpm_version 4.14.0
+%if 0%{?rhel} == 7
+%global rpm_version 4.11.3-27
+%endif
+%if 0%{?fedora} == 26
+%global rpm_version 4.13.0.1-7
+%endif
+%if 0%{?fedora} > 26
+%global rpm_version 4.13.90
+%endif
 %global min_plugins_core 2.1.3
 %global dnf_langpacks_ver 0.15.1-6
 
@@ -24,16 +33,13 @@
 %global _docdir_fmt %{name}
 
 Name:           dnf
-Version:        2.6.4
+Version:        2.8.6
 Release:        1%{?dist}
 Summary:        Package manager forked from Yum, using libsolv as a dependency resolver
 # For a breakdown of the licensing, see PACKAGE-LICENSING
 License:        GPLv2+ and GPLv2 and GPL
 URL:            https://github.com/rpm-software-management/dnf
-# git clone https://github.com/rpm-software-management/dnf
-# cd dnf
-# tito build --tgz --tag=dnf-2.5.1-1
-Source0:        %{name}-%{version}.tar.gz
+Source0:        %{url}/archive/%{version}/%{name}-%{version}.tar.gz
 BuildArch:      noarch
 BuildRequires:  cmake
 BuildRequires:  gettext
@@ -50,14 +56,16 @@ Requires:       python2-%{name} = %{version}-%{release}
 %endif
 %if 0%{?rhel} && 0%{?rhel} <= 7
 Requires:       python-dbus
+Requires:       %{_bindir}/sqlite3
 %else
-# TODO: use rich deps once it is allowed
-#Recommends:     (python%{?with_python3:3}-dbus if NetworkManager)
-Recommends:     python%{?with_python3:3}-dbus
+%if %{with python3}
+Recommends:     (python3-dbus if NetworkManager)
+%else
+Recommends:     (python2-dbus if NetworkManager)
 %endif
-Requires(post):     systemd
-Requires(preun):    systemd
-Requires(postun):   systemd
+Recommends:     (%{_bindir}/sqlite3 if bash-completion)
+%endif
+%{?systemd_requires}
 Provides:       dnf-command(autoremove)
 Provides:       dnf-command(check-update)
 Provides:       dnf-command(clean)
@@ -123,27 +131,33 @@ Summary:        Python 2 interface to DNF
 %{?python_provide:%python_provide python2-%{name}}
 BuildRequires:  python2-devel
 BuildRequires:  python2-hawkey >= %{hawkey_version}
-BuildRequires:  python-iniparse
-BuildRequires:  python-libcomps >= %{libcomps_version}
-BuildRequires:  python-librepo >= %{librepo_version}
-BuildRequires:  python-nose
+BuildRequires:  python2-libcomps >= %{libcomps_version}
+BuildRequires:  python2-librepo >= %{librepo_version}
+BuildRequires:  python2-nose
 BuildRequires:  python2-gpg
 Requires:       python2-gpg
 BuildRequires:  pyliblzma
-BuildRequires:  rpm-python >= %{rpm_version}
 Requires:       pyliblzma
 Requires:       %{name}-conf = %{version}-%{release}
+%if 0%{?fedora} || 0%{?centos}
 Requires:       deltarpm
+%endif
 Requires:       python2-hawkey >= %{hawkey_version}
-Requires:       python-iniparse
-Requires:       python-libcomps >= %{libcomps_version}
-Requires:       python-librepo >= %{librepo_version}
+Requires:       python2-libcomps >= %{libcomps_version}
+Requires:       python2-librepo >= %{librepo_version}
 %if 0%{?rhel} && 0%{?rhel} <= 7
+BuildRequires:  python-iniparse
+Requires:       python-iniparse
+BuildRequires:  rpm-python >= %{rpm_version}
+Requires:       rpm-python >= %{rpm_version}
 Requires:       rpm-plugin-systemd-inhibit
 %else
+BuildRequires:  python2-iniparse
+Requires:       python2-iniparse
+BuildRequires:  python2-rpm >= %{rpm_version}
+Requires:       python2-rpm >= %{rpm_version}
 Recommends:     rpm-plugin-systemd-inhibit
 %endif
-Requires:       rpm-python >= %{rpm_version}
 # dnf-langpacks package is retired in F25
 # to have clean upgrade path for dnf-langpacks
 Obsoletes:      python-dnf-langpacks < %{dnf_langpacks_ver}
@@ -164,19 +178,21 @@ BuildRequires:  python3-librepo >= %{librepo_version}
 BuildRequires:  python3-nose
 BuildRequires:  python3-gpg
 Requires:       python3-gpg
-BuildRequires:  rpm-python3 >= %{rpm_version}
 Requires:       %{name}-conf = %{version}-%{release}
+%if 0%{?fedora} || 0%{?centos}
 Requires:       deltarpm
+%endif
 Requires:       python3-hawkey >= %{hawkey_version}
 Requires:       python3-iniparse
 Requires:       python3-libcomps >= %{libcomps_version}
 Requires:       python3-librepo >= %{librepo_version}
+BuildRequires:  python3-rpm >= %{rpm_version}
+Requires:       python3-rpm >= %{rpm_version}
 %if 0%{?rhel} && 0%{?rhel} <= 7
 Requires:       rpm-plugin-systemd-inhibit
 %else
 Recommends:     rpm-plugin-systemd-inhibit
 %endif
-Requires:       rpm-python3 >= %{rpm_version}
 # dnf-langpacks package is retired in F25
 # to have clean upgrade path for dnf-langpacks
 Obsoletes:      python3-dnf-langpacks < %{dnf_langpacks_ver}
@@ -189,9 +205,7 @@ Python 3 interface to DNF.
 Summary:        Alternative CLI to "dnf upgrade" suitable for automatic, regular execution.
 BuildRequires:  systemd
 Requires:       %{name} = %{version}-%{release}
-Requires(post):   systemd
-Requires(preun):  systemd
-Requires(postun): systemd
+%{?systemd_requires}
 
 %description automatic
 Alternative CLI to "dnf upgrade" suitable for automatic, regular execution.
@@ -226,7 +240,7 @@ pushd build-py3
 popd
 %endif
 %find_lang %{name}
-
+mkdir -p %{buildroot}%{confdir}/vars
 mkdir -p %{buildroot}%{pluginconfpath}/
 mkdir -p %{buildroot}%{py2pluginpath}/
 %if %{with python3}
@@ -311,6 +325,7 @@ popd
 %dir %{confdir}
 %dir %{pluginconfpath}
 %dir %{confdir}/protected.d
+%dir %{confdir}/vars
 %config(noreplace) %{confdir}/%{name}.conf
 %config(noreplace) %{confdir}/protected.d/%{name}.conf
 %config(noreplace) %{_sysconfdir}/logrotate.d/%{name}
@@ -373,6 +388,49 @@ popd
 %endif
 
 %changelog
+* Wed Oct 18 2017 Igor Gnatenko <ignatenko@redhat.com> - 2.7.5-1
+- Improve performance for excludes and includes handling (RHBZ #1500361)
+- Fixed problem of handling checksums for local repositories (RHBZ #1502106)
+- Fix traceback when using dnf.Base.close() (RHBZ #1503575)
+
+* Mon Oct 16 2017 Jaroslav Mracek <jmracek@redhat.com> - 2.7.4-1
+- Update to 2.7.4-1
+- Enhanced performance for excludes and includes handling
+- Solved memory leaks at time of closing of dnf.Base()
+- Resolves: rhbz#1480979 - I thought it abnormal that dnf crashed.
+- Resolves: rhbz#1461423 - Memory leak in python-dnf
+- Resolves: rhbz#1499564 - dnf list installed crashes
+- Resolves: rhbz#1499534 - dnf-2 is much slower than dnf-1 when handling groups
+- Resolves: rhbz#1499623 - Mishandling stderr vs stdout (dnf search, dnf repoquery)
+
+* Fri Oct 06 2017 Igor Gnatenko <ignatenko@redhat.com> - 2.7.3-1
+- Fix URL detection (RHBZ #1472847)
+- Do not remove downloaded files with --destdir option (RHBZ #1498426)
+- Fix handling of conditional packages in comps (RHBZ #1427144)
+
+* Mon Oct 02 2017 Jaroslav Mracek <jmracek@redhat.com> - 2.7.2-1
+- Update to 2.7.2-1
+- Added new option ``--comment=<comment>`` that adds a comment to transaction in history
+- :meth:`dnf.Base.pre_configure_plugin` configure plugins by running their pre_configure() method
+- Added pre_configure() methotd for plugins and commands to configure dnf before repos are loaded
+- Resolves: rhbz#1421478 - dnf repository-packages: error: unrecognized arguments: -x rust-rpm-macros
+- Resolves: rhbz#1491560 - 'dnf check' reports spurious "has missing requires of" errors
+- Resolves: rhbz#1465292 - DNF remove protected duplicate package
+- Resolves: rhbz#1279001 - [RFE] Missing dnf --downloaddir option
+- Resolves: rhbz#1212341 - [RFE] Allow plugins to override the core configuration
+- Resolves: rhbz#1299482 - mock --init fails with message "Failed calculating RPMDB checksum"
+- Resolves: rhbz#1488398 - dnf upstream tests failures on f26
+- Resolves: rhbz#1192811 - dnf whatprovides should show which provides matched a pattern
+- Resolves: rhbz#1288845 - "dnf provides" wildcard matching is unreliable (not all packages with matches listed)
+- Resolves: rhbz#1473933 - [abrt] dnf-automatic: resolved(): rpm_conf.py:58:resolved:AttributeError: 'Rpmconf' object has no attribute '_interactive'
+- Resolves: rhbz#1237349 - dnf autoremove not removing what dnf list extras shows
+- Resolves: rhbz#1470050 - the 'priority=' option in /etc/yum.repos.d/*.repo is not respected
+- Resolves: rhbz#1347927 - dnf --cacheonly downloads packages
+- Resolves: rhbz#1478115 - [abrt] dnf: _hcmd_undo(): __init__.py:888:_hcmd_undo:IndexError: list index out of range
+- Resolves: rhbz#1461171 -  RFE: support --advisory= with install
+- Resolves: rhbz#1448874 - "dnf needs-restarting" vanished from bash completion
+- Resolves: rhbz#1495116 - Dnf version fails with traceback in container
+
 * Mon Aug 07 2017 Jaroslav Mracek <jmracek@redhat.com> 2.6.3-1
 - Fix problem with dnf.Package().remote_location() (RhBug:1476215) (Jaroslav
   Mracek)

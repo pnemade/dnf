@@ -39,7 +39,7 @@ class SearchCommand(commands.Command):
     search command.
     """
 
-    aliases = ('search', 'se')
+    aliases = ('search',)
     summary = _('search package details for the given string')
 
     @staticmethod
@@ -96,7 +96,7 @@ class SearchCommand(commands.Command):
         print_section_header = False
         limit = None
         if not self.base.conf.showdupesfromrepos:
-            limit = self.base.sack.query().filter(pkg=counter.keys()).latest()
+            limit = self.base.sack.query().filterm(pkg=counter.keys()).latest()
         for pkg in counter.sorted(reverse=True, limit_to=limit):
             if used_attrs != counter.matched_keys(pkg):
                 used_attrs = counter.matched_keys(pkg)
@@ -119,10 +119,14 @@ class SearchCommand(commands.Command):
         fdict = {'%s__substr' % attr : needle}
         if dnf.util.is_glob_pattern(needle):
             fdict = {'%s__glob' % attr : needle}
-        q = self.base.sack.query().filter(hawkey.ICASE, **fdict)
+        q = self.base.sack.query().filterm(hawkey.ICASE, **fdict)
         for pkg in q.run():
             counter.add(pkg, attr, needle)
         return counter
+
+    def pre_configure(self):
+        if not self.opts.verbose and not self.opts.quiet:
+            self.cli.redirect_logger(stdout=logging.WARNING, stderr=logging.INFO)
 
     def configure(self):
         demands = self.cli.demands

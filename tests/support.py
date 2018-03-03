@@ -1,4 +1,6 @@
-# Copyright (C) 2012-2016 Red Hat, Inc.
+# -*- coding: utf-8 -*-
+
+# Copyright (C) 2012-2018 Red Hat, Inc.
 #
 # This copyrighted material is made available to anyone wishing to use,
 # modify, copy, or redistribute it subject to the terms and conditions of
@@ -17,8 +19,18 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
-from functools import reduce
+
 import contextlib
+import logging
+import os
+import re
+import unittest
+from functools import reduce
+
+import hawkey
+import hawkey.test
+from hawkey import SwdbReason, SwdbPkgData
+
 import dnf
 import dnf.conf
 import dnf.cli.cli
@@ -33,14 +45,7 @@ import dnf.persistor
 import dnf.pycomp
 import dnf.repo
 import dnf.sack
-import dnf.yum.rpmsack
-import hawkey
-import hawkey.test
-import itertools
-import logging
-import os
-import re
-import unittest
+
 
 if dnf.pycomp.PY3:
     from unittest import mock
@@ -72,10 +77,10 @@ TRACEBACK_RE = re.compile(
     r'(?:    .+\n)?)+'
     r'\S.*\n)')
 REASONS = {
-    'hole'      : 'group',
-    'pepper'    : 'group',
-    'right'     : 'dep',
-    'tour'      : 'group',
+    'hole': 'group',
+    'pepper': 'group',
+    'right': 'dep',
+    'tour': 'group',
     'trampoline': 'group',
 }
 RPMDB_CHECKSUM = '47655615e9eae2d339443fa00065d41900f99baf'
@@ -87,17 +92,22 @@ AVAILABLE_NSOLVABLES = MAIN_NSOLVABLES + UPDATES_NSOLVABLES
 TOTAL_GROUPS = 4
 TOTAL_NSOLVABLES = SYSTEM_NSOLVABLES + AVAILABLE_NSOLVABLES
 
+
 # testing infrastructure
+
 
 def dnf_toplevel():
     return os.path.normpath(os.path.join(__file__, '../../'))
 
+
 def repo(reponame):
     return os.path.join(REPO_DIR, reponame)
+
 
 def resource_path(path):
     this_dir = os.path.dirname(__file__)
     return os.path.join(this_dir, path)
+
 
 REPO_DIR = resource_path('repos')
 COMPS_PATH = os.path.join(REPO_DIR, 'main_comps.xml')
@@ -107,19 +117,24 @@ TOUR_50_PKG_PATH = resource_path('repos/rpm/tour-5-0.noarch.rpm')
 TOUR_51_PKG_PATH = resource_path('repos/rpm/tour-5-1.noarch.rpm')
 USER_RUNDIR = '/tmp/dnf-user-rundir'
 
+
 # often used query
+
 
 def installed_but(sack, *args):
     q = sack.query().filter(reponame__eq=hawkey.SYSTEM_REPO_NAME)
     return reduce(lambda query, name: query.filter(name__neq=name), args, q)
 
+
 # patching the stdout
+
 
 @contextlib.contextmanager
 def patch_std_streams():
     with mock.patch('sys.stdout', new_callable=dnf.pycomp.StringIO) as stdout, \
             mock.patch('sys.stderr', new_callable=dnf.pycomp.StringIO) as stderr:
         yield (stdout, stderr)
+
 
 @contextlib.contextmanager
 def wiretap_logs(logger_name, level, stream):
@@ -141,6 +156,7 @@ def wiretap_logs(logger_name, level, stream):
         logger.setLevel(orig_level)
         logger.handlers = orig_handlers
 
+
 def command_configure(cmd, args):
     parser = dnf.cli.option_parser.OptionParser()
     args = [cmd._basecmd] + args
@@ -148,9 +164,21 @@ def command_configure(cmd, args):
     parser.parse_command_args(cmd, args)
     return cmd.configure()
 
+
 def command_run(cmd, args):
     command_configure(cmd, args)
     return cmd.run()
+
+
+def mockSwdbPkg(history, pkg, state="Installed", repo="unknown", reason=SwdbReason.USER):
+    """ Add DnfPackage into database """
+    hpkg = history.ipkg_to_pkg(pkg)
+    pid = history.add_package(hpkg)
+    pkg_data = SwdbPkgData()
+    history.swdb.trans_data_beg(0, pid, reason, state, False)
+    history.update_package_data(pid, 0, pkg_data)
+    history.set_repo(hpkg, repo)
+
 
 class Base(dnf.Base):
     def __init__(self, *args, **kwargs):
@@ -159,24 +187,32 @@ class Base(dnf.Base):
 
 # mock objects
 
-def mock_comps(seed_persistor):
+
+def mock_comps(history, seed_persistor):
     comps = dnf.comps.Comps()
     comps._add_from_xml_filename(COMPS_PATH)
 
-    persistor = MockGroupPersistor()
+    persistor = history.group
     if seed_persistor:
-        p_env = persistor.environment('sugar-desktop-environment')
-        p_env.grp_types = dnf.comps.ALL_TYPES
-        p_env.pkg_types = dnf.comps.ALL_TYPES
-        p_env.full_list.extend(('Peppers', 'somerset'))
-        p_pep = persistor.group('Peppers')
-        p_pep.pkg_types = dnf.comps.MANDATORY
-        p_pep.full_list.extend(('hole', 'lotus'))
-        p_som = persistor.group('somerset')
-        p_som.pkg_types = dnf.comps.MANDATORY
-        p_som.full_list.extend(('pepper', 'trampoline', 'lotus'))
+        name = 'Peppers'
+        pkg_types = dnf.comps.MANDATORY
+        p_pep = persistor.new_group(name, name, name, False, pkg_types)
+        persistor.add_group(p_pep)
+        p_pep.add_package(['hole', 'lotus'])
 
-    return comps, persistor
+        name = 'somerset'
+        pkg_types = dnf.comps.MANDATORY
+        p_som = persistor.new_group(name, name, name, False, pkg_types)
+        persistor.add_group(p_som)
+        p_som.add_package(['pepper', 'trampoline', 'lotus'])
+
+        name = 'sugar-desktop-environment'
+        grp_types = dnf.comps.ALL_TYPES
+        pkg_types = dnf.comps.ALL_TYPES
+        p_env = persistor.new_env(name, name, name, pkg_types, grp_types)
+        persistor.add_env(p_env)
+        p_env.add_group(['Peppers', 'somerset'])
+    return comps
 
 
 def mock_logger():
@@ -201,8 +237,9 @@ class _BaseStubMixin(object):
             self._repos.add(repo)
 
         self._repo_persistor = FakePersistor()
-        self._priv_yumdb = MockYumDB()
         self._ds_callback = mock.Mock()
+        self._history = None
+        self._closing = False
 
     def add_test_dir_repo(self, id_, cachedir):
         """Add a repository located in a directory in the tests."""
@@ -211,17 +248,29 @@ class _BaseStubMixin(object):
         self.repos.add(repo)
         return repo
 
+    def close(self):
+        self._closing = True
+        super(_BaseStubMixin, self).close()
+
+    @property
+    def history(self):
+        if self._history:
+            return self._history
+        else:
+            self._history = super(_BaseStubMixin, self).history
+            if not self._closing:
+                # don't reset db on close, it causes several tests to fail
+                self._history.reset_db()
+            return self._history
+
     @property
     def sack(self):
         if self._sack:
             return self._sack
         return self.init_sack()
 
-    def _activate_group_persistor(self):
-        return MockGroupPersistor()
-
     def _build_comps_solver(self):
-        return dnf.comps.Solver(self._group_persistor, self._comps,
+        return dnf.comps.Solver(self.history.group, self._comps,
                                 REASONS.get)
 
     def _activate_persistor(self):
@@ -243,9 +292,6 @@ class _BaseStubMixin(object):
         self._goal = dnf.goal.Goal(self._sack)
         return self._sack
 
-    def close(self):
-        pass
-
     def mock_cli(self):
         stream = dnf.pycomp.StringIO()
         logger = logging.getLogger('test')
@@ -255,16 +301,16 @@ class _BaseStubMixin(object):
                          demands=dnf.cli.demand.DemandSheet())
 
     def read_mock_comps(self, seed_persistor=True):
-        self._comps, self._group_persistor = mock_comps(seed_persistor)
+        self._comps = mock_comps(self.history, seed_persistor)
         return self._comps
 
     def read_all_repos(self, opts=None):
         for repo in self.repos.values():
             repo._configure_from_options(opts)
 
-
     def set_debuglevel(self, level):
         self.conf._set_value('debuglevel', level, dnf.conf.PRIO_RUNTIME)
+
 
 class BaseCliStub(_BaseStubMixin, dnf.cli.cli.BaseCli):
     """A class mocking `dnf.cli.cli.BaseCli`."""
@@ -273,6 +319,10 @@ class BaseCliStub(_BaseStubMixin, dnf.cli.cli.BaseCli):
         """Initialize the base."""
         super(BaseCliStub, self).__init__(*extra_repos)
         self.output.term = MockTerminal()
+
+
+class DemandsStub(object):
+    pass
 
 
 class CliStub(object):
@@ -294,46 +344,13 @@ class CliStub(object):
         self.cli_commands.update({alias: command for alias in command.aliases})
 
 
-class DemandsStub(object):
-    pass
-
-
-class HistoryStub(dnf.yum.history.YumHistory):
-    """Stub of dnf.yum.history.YumHistory for easier testing."""
-
-    def __init__(self):
-        """Initialize a stub instance."""
-        self.old_data_pkgs = {}
-
-    def _old_data_pkgs(self, tid, sort=True):
-        """Get packages of a transaction."""
-        if sort:
-            raise NotImplementedError('sorting not implemented yet')
-        return self.old_data_pkgs.get(tid, ())[:]
-
-    def close(self):
-        """Close the history."""
-        pass
-
-    def old(self, tids=[], limit=None, *_args, **_kwargs):
-        """Get transactions with given IDs."""
-        create = lambda tid: dnf.yum.history.YumHistoryTransaction(self,
-            (int(tid), 0, '0:685cc4ac4ce31b9190df1604a96a3c62a3100c35',
-             1, '1:685cc4ac4ce31b9190df1604a96a3c62a3100c36', 0, 0))
-
-        sorted_all_tids = sorted(self.old_data_pkgs.keys(), reverse=True)
-
-        trxs = (create(tid) for tid in tids or sorted_all_tids
-                if tid in self.old_data_pkgs)
-        limited = trxs if limit is None else itertools.islice(trxs, limit)
-        return tuple(limited)
-
 class MockOutput(object):
     def __init__(self):
         self.term = MockTerminal()
 
     def setup_progress_callbacks(self):
         return (None, None)
+
 
 class MockPackage(object):
     def __init__(self, nevra, repo=None):
@@ -360,6 +377,7 @@ class MockPackage(object):
 
     def returnIdSum(self):
         return self._chksum
+
 
 class MockRepo(dnf.repo.Repo):
     def _valid(self):
@@ -404,10 +422,12 @@ class MockQuery(dnf.query.Query):
     def run(self):
         return self.pkgs
 
+
 class MockTerminal(object):
     def __init__(self):
-        self.MODE = {'bold'   : '', 'normal' : ''}
+        self.MODE = {'bold': '', 'normal': ''}
         self.columns = 80
+        self.real_columns = 80
         self.reinit = mock.Mock()
 
     def bold(self, s):
@@ -423,112 +443,67 @@ class TestSack(hawkey.test.TestSackMixin, dnf.sack.Sack):
                                pkginitval=base,
                                make_cache_dir=True)
 
+
 class MockBase(_BaseStubMixin, Base):
     """A class mocking `dnf.Base`."""
 
+
 def mock_sack(*extra_repos):
     return MockBase(*extra_repos).sack
-
-class MockYumDB(mock.Mock):
-    def __init__(self):
-        super(mock.Mock, self).__init__()
-        self.db = {}
-
-    def get_package(self, pkg):
-        return self.db.setdefault(str(pkg), mock.Mock())
-
-    def assertLength(self, length):
-        assert len(self.db) == length
-
-class RPMDBAdditionalDataPackageStub(dnf.yum.rpmsack.RPMDBAdditionalDataPackage):
-
-    """A class mocking `dnf.yum.rpmsack.RPMDBAdditionalDataPackage`."""
-
-    def __init__(self):
-        """Initialize the data."""
-        super(RPMDBAdditionalDataPackageStub, self).__init__(None, None, None)
-
-    def __iter__(self, show_hidden=False):
-        """Return a new iterator over the data."""
-        for item in self._read_cached_data:
-            yield item
-
-    def _attr2fn(self, attribute):
-        """Convert given *attribute* to a filename."""
-        raise NotImplementedError('the method is not supported')
-
-    def _delete(self, attribute):
-        """Delete the *attribute* value."""
-        try:
-            del self._read_cached_data[attribute]
-        except KeyError:
-            raise AttributeError("Cannot delete attribute %s on %s " %
-                                 (attribute, self))
-
-    def _read(self, attribute):
-        """Read the *attribute* value."""
-        if attribute in self._read_cached_data:
-            return self._read_cached_data[attribute]
-        raise AttributeError("%s has no attribute %s" % (self, attribute))
-
-    def _write(self, attribute, value):
-        """Write the *attribute* value."""
-        self._auto_cache(attribute, value, None)
-
-    def clean(self):
-        """Purge out everything."""
-        for item in self.__iter__(show_hidden=True):
-            self._delete(item)
 
 
 class FakeConf(dnf.conf.Conf):
     def __init__(self, **kwargs):
         super(FakeConf, self).__init__()
         self.substitutions['releasever'] = 'Fedora69'
-        for optname, val in [
-                ('assumeyes', None),
-                ('best', False),
-                ('cachedir', dnf.const.TMPDIR),
-                ('clean_requirements_on_remove', False),
-                ('color', 'never'),
-                ('color_update_installed', 'normal'),
-                ('color_update_remote', 'normal'),
-                ('color_list_available_downgrade', 'dim'),
-                ('color_list_available_install', 'normal'),
-                ('color_list_available_reinstall', 'bold'),
-                ('color_list_available_upgrade', 'bold'),
-                ('color_list_installed_extra', 'bold'),
-                ('color_list_installed_newer', 'bold'),
-                ('color_list_installed_older', 'bold'),
-                ('color_list_installed_reinstall', 'normal'),
-                ('color_update_local', 'bold'),
-                ('debug_solver', False),
-                ('debuglevel', 2),
-                ('defaultyes', False),
-                ('disable_excludes', []),
-                ('diskspacecheck', True),
-                ('exclude', []),
-                ('include', []),
-                ('install_weak_deps', True),
-                ('history_record', False),
-                ('installonly_limit', 0),
-                ('installonlypkgs', ['kernel']),
-                ('installroot', '/'),
-                ('ip_resolve', None),
-                ('multilib_policy', 'best'),
-                ('obsoletes', True),
-                ('persistdir', '/should-not-exist-bad-test/persist'),
-                ('protected_packages', ["dnf"]),
-                ('plugins', False),
-                ('showdupesfromrepos', False),
-                ('tsflags', []),
-                ('strict', True),
-                ] + list(kwargs.items()):
+        options = [
+            ('assumeyes', None),
+            ('best', False),
+            ('cachedir', dnf.const.TMPDIR),
+            ('clean_requirements_on_remove', False),
+            ('color', 'never'),
+            ('color_update_installed', 'normal'),
+            ('color_update_remote', 'normal'),
+            ('color_list_available_downgrade', 'dim'),
+            ('color_list_available_install', 'normal'),
+            ('color_list_available_reinstall', 'bold'),
+            ('color_list_available_upgrade', 'bold'),
+            ('color_list_installed_extra', 'bold'),
+            ('color_list_installed_newer', 'bold'),
+            ('color_list_installed_older', 'bold'),
+            ('color_list_installed_reinstall', 'normal'),
+            ('color_update_local', 'bold'),
+            ('debug_solver', False),
+            ('debuglevel', 2),
+            ('defaultyes', False),
+            ('disable_excludes', []),
+            ('diskspacecheck', True),
+            ('exclude', []),
+            ('include', []),
+            ('install_weak_deps', True),
+            ('history_record', False),
+            ('installonly_limit', 0),
+            ('installonlypkgs', ['kernel']),
+            ('installroot', '/'),
+            ('ip_resolve', None),
+            ('multilib_policy', 'best'),
+            ('obsoletes', True),
+            ('persistdir', '/tmp/swdb/'),
+            ('transformdb', False),
+            ('protected_packages', ["dnf"]),
+            ('plugins', False),
+            ('showdupesfromrepos', False),
+            ('tsflags', []),
+            ('strict', True),
+        ] + list(kwargs.items())
+
+        for optname, val in options:
             setattr(self, optname, dnf.conf.Value(val, dnf.conf.PRIO_DEFAULT))
 
     @property
     def releasever(self):
         return self.substitutions['releasever']
+
 
 class FakePersistor(object):
     reset_last_makecache = False
@@ -540,14 +515,12 @@ class FakePersistor(object):
     def since_last_makecache(self):
         return None
 
-class MockGroupPersistor(dnf.persistor.GroupPersistor):
-    """Empty persistor that doesn't need any I/O."""
-    def __init__(self):
-        self.db = self._empty_db()
-        self._original = self._empty_db()
+    def save(self):
+        pass
 
 
 # object matchers for asserts
+
 
 class ObjectMatcher(object):
     """Class allowing partial matching of objects."""
@@ -621,7 +594,92 @@ class TestCase(unittest.TestCase):
         return self.assertCountEqual([pkg.name for pkg in trans_pkgs], list)
 
 
-class ResultTestCase(TestCase):
+class DnfBaseTestCase(TestCase):
+
+    # create base with specified test repos
+    REPOS = []
+
+    # initialize mock sack
+    INIT_SACK = False
+
+    # initialize self.base._transaction
+    INIT_TRANSACTION = False
+
+    # False: self.base = MockBase()
+    # True: self.base = BaseCliStub()
+    BASE_CLI = False
+
+    # None: self.cli = None
+    # "init": self.cli = dnf.cli.cli.Cli(self.base)
+    # "mock": self.cli = self.base.mock_cli()
+    # "stub": self.cli = StubCli(self.base)
+    CLI = None
+
+    # read test comps data
+    COMPS = False
+
+    # pass as seed_persistor option to reading test comps data
+    COMPS_SEED_PERSISTOR = False
+
+    # initialize self.solver = dnf.comps.Solver()
+    COMPS_SOLVER = False
+
+    def setUp(self):
+        if self.BASE_CLI:
+            self.base = BaseCliStub(*self.REPOS)
+        else:
+            self.base = MockBase(*self.REPOS)
+
+        if self.CLI is None:
+            self.cli = None
+        elif self.CLI == "init":
+            self.cli = dnf.cli.cli.Cli(self.base)
+        elif self.CLI == "mock":
+            self.cli = self.base.mock_cli()
+        elif self.CLI == "stub":
+            self.cli = CliStub(self.base)
+        else:
+            raise ValueError("Invalid CLI value: {}".format(self.CLI))
+
+        if self.COMPS:
+            self.base.read_mock_comps(seed_persistor=self.COMPS_SEED_PERSISTOR)
+
+        if self.INIT_SACK:
+            self.base.init_sack()
+
+        if self.INIT_TRANSACTION:
+            self.base._transaction = dnf.transaction.Transaction()
+
+        if self.COMPS_SOLVER:
+            self.solver = dnf.comps.Solver(self.persistor, self.comps, REASONS.get)
+        else:
+            self.solver = None
+
+    def tearDown(self):
+        self.base.close()
+
+    @property
+    def comps(self):
+        return self.base.comps
+
+    @property
+    def goal(self):
+        return self.base._goal
+
+    @property
+    def history(self):
+        return self.base.history
+
+    @property
+    def persistor(self):
+        return self.base.history.group
+
+    @property
+    def sack(self):
+        return self.base.sack
+
+
+class ResultTestCase(DnfBaseTestCase):
 
     allow_erasing = False
 

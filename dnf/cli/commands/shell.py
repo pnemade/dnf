@@ -48,7 +48,7 @@ class ShellDemandSheet(object):
 
 class ShellCommand(commands.Command, cmd.Cmd):
 
-    aliases = ('shell', 'sh')
+    aliases = ('shell',)
     summary = _('run an interactive DNF shell')
 
     MAPPING = {'repo': 'repo',
@@ -83,7 +83,7 @@ class ShellCommand(commands.Command, cmd.Cmd):
             self.cmdloop()
 
     def _clean(self):
-        self.base.close()
+        self.base._finalize_base()
         self.base._transaction = None
         self.base.fill_sack()
 

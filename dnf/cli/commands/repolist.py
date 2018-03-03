@@ -61,7 +61,7 @@ def _repo_match(repo, patterns):
 
 def _repo_size(sack, repo):
     ret = 0
-    for pkg in sack.query().filter(reponame__eq=repo.id):
+    for pkg in sack.query().filterm(reponame__eq=repo.id):
         ret += pkg._size
     return dnf.cli.format.format_number(ret)
 
@@ -90,13 +90,15 @@ class RepoListCommand(commands.Command):
                             choices=['all', 'enabled', 'disabled'],
                             action=OptionParser.PkgNarrowCallback)
 
+    def pre_configure(self):
+        if not self.opts.verbose and not self.opts.quiet:
+            self.cli.redirect_logger(stdout=logging.WARNING, stderr=logging.INFO)
+
     def configure(self):
         demands = self.cli.demands
         demands.available_repos = True
         demands.fresh_metadata = False
         demands.sack_activation = True
-        if not self.opts.verbose and not self.opts.quiet:
-            self.cli.redirect_logger(stdout=logging.WARNING, stderr=logging.INFO)
 
         if self.opts._repos_action:
             self.opts.repos_action = self.opts._repos_action
@@ -148,8 +150,7 @@ class RepoListCommand(commands.Command):
                     ui_size = _repo_size(self.base.sack, repo)
                 # We don't show status for list disabled
                 if arg != 'disabled' or verbose:
-                    num = len(self.base.sack.query().filter(
-                        reponame__eq=repo.id))
+                    num = len(self.base.sack.query().filterm(reponame__eq=repo.id))
                     ui_num = _num2ui_num(num)
                     tot_num += num
             else:

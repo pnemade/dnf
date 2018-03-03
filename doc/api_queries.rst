@@ -110,7 +110,9 @@
 
   .. method:: latest(limit=1)
 
-    Return a new query that limits the result to ``limit`` highest version of packages per package name and per architecture.
+    Return a new query that limits the result to ``limit`` highest version of packages per package
+    name and per architecture. In case the limit is negative number, it excludes the number of
+    latest versions according to limit.
 
   .. method:: run
 
@@ -146,8 +148,8 @@
     used in a transaction operation. `sack` and `forms` have the same meaning as in
     :meth:`get_best_query`. If ``obsoletes``, selector will also contain packages that obsoletes
     requested packages (default is True). If ``reponame``, the selection of available packages is
-    limited to packages from that repo (default is False). If ``reports``, it will report if
-    packages where already installed (default is False).
+    limited to packages from that repo (default is False). Attribute ``reports`` is deprecated and
+    not used any more. Will be removed on 2018-01-01.
 
   .. method:: get_nevra_possibilities(self, forms=None)
 

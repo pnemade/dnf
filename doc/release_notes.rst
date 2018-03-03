@@ -20,6 +20,73 @@
 ###################
 
 ===================
+2.7.5 Release Notes
+===================
+
+* Improved performance for excludes and includes handling
+* Fixed problem of handling checksums for local repositories
+* Fix traceback when using dnf.Base.close()
+
+Bugs fixed in 2.7.5:
+
+* :rhbug:`1502106`
+* :rhbug:`1500361`
+* :rhbug:`1503575`
+
+===================
+2.7.4 Release Notes
+===================
+
+* Enhanced performance for excludes and includes handling
+* Solved memory leaks at time of closing of dnf.Base()
+
+Bugs fixed in 2.7.4:
+
+* :rhbug:`1480979`
+* :rhbug:`1461423`
+* :rhbug:`1499564`
+* :rhbug:`1499534`
+* :rhbug:`1499623`
+
+===================
+2.7.3 Release Notes
+===================
+
+Bugs fixed in 2.7.3:
+
+* :rhbug:`1472847`
+* :rhbug:`1498426`
+* :rhbug:`1427144`
+
+===================
+2.7.2 Release Notes
+===================
+
+API additions in 2.7.2:
+
+* Added new option ``--comment=<comment>`` that adds a comment to transaction in history
+* :meth:`dnf.Base.pre_configure_plugin` configure plugins by running their pre_configure() method
+* Added pre_configure() method for plugins and commands to configure dnf before repos are loaded
+
+Bugs fixed in 2.7.2:
+
+* :rhbug:`1421478`
+* :rhbug:`1491560`
+* :rhbug:`1465292`
+* :rhbug:`1279001`
+* :rhbug:`1212341`
+* :rhbug:`1299482`
+* :rhbug:`1192811`
+* :rhbug:`1288845`
+* :rhbug:`1237349`
+* :rhbug:`1470050`
+* :rhbug:`1347927`
+* :rhbug:`1478115`
+* :rhbug:`1461171`
+* :rhbug:`1495116`
+* :rhbug:`1448874`
+
+===================
 2.6.3 Release Notes
 ===================
 

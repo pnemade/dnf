@@ -2238,5 +2238,101 @@
     [
         1457507, 
         "[api] Explicitly set metalink is not substituted"
+    ], 
+    [
+        1421478, 
+        "dnf repository-packages: error: unrecognized arguments: -x rust-rpm-macros"
+    ], 
+    [
+        1491560, 
+        "'dnf check' reports spurious \"has missing requires of\" errors"
+    ], 
+    [
+        1465292, 
+        "DNF remove protected duplicate package"
+    ], 
+    [
+        1299482, 
+        "mock --init fails with message \"Failed calculating RPMDB checksum\""
+    ], 
+    [
+        1192811, 
+        "dnf whatprovides should show which provides matched a pattern"
+    ], 
+    [
+        1288845, 
+        "\"dnf provides\" wildcard matching is unreliable (not all packages with matches listed)"
+    ], 
+    [
+        1237349, 
+        "dnf autoremove not removing what dnf list extras shows"
+    ], 
+    [
+        1470050, 
+        "the 'priority=' option in /etc/yum.repos.d/*.repo is not respected"
+    ], 
+    [
+        1347927, 
+        "dnf --cacheonly downloads packages"
+    ], 
+    [
+        1478115, 
+        "[abrt] dnf: _hcmd_undo(): __init__.py:888:_hcmd_undo:IndexError: list index out of range"
+    ], 
+    [
+        1461171, 
+        "RFE: support --advisory= with install"
+    ], 
+    [
+        1495116, 
+        "Dnf version fails with traceback in container"
+    ], 
+    [
+        1448874, 
+        "\"dnf needs-restarting\" vanished from bash completion"
+    ], 
+    [
+        1472847, 
+        "dnf install dosn't handle 'Location:' http header"
+    ], 
+    [
+        1498426, 
+        "dnf download does not download RPMs in fedora rawhide container image"
+    ], 
+    [
+        1427144, 
+        "libselinux-python not installed when @ansible-node in kickstart %packages"
+    ], 
+    [
+        1480979, 
+        "I thought it abnormal that dnf crashed."
+    ], 
+    [
+        1461423, 
+        "Memory leak in python-dnf"
+    ], 
+    [
+        1499564, 
+        "dnf list installed crashes"
+    ], 
+    [
+        1499534, 
+        "dnf-2 is much slower than dnf-1 when handling groups"
+    ], 
+    [
+        1499623, 
+        "Mishandling stderr vs stdout (dnf search, dnf repoquery)"
+    ], 
+    [
+        1502106, 
+        "dnf packages update breaks package removal via ansible"
+    ], 
+    [
+        1500361, 
+        "DNF in Fedora 26 is terrible slow"
+    ], 
+    [
+        1503575, 
+        "DNF breaks composes: AttributeError: 'NoneType' object has no attribute 'install_set'"
     ]
 ]

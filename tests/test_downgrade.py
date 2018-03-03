@@ -1,4 +1,6 @@
-# Copyright (C) 2012-2016 Red Hat, Inc.
+# -*- coding: utf-8 -*-
+
+# Copyright (C) 2012-2018 Red Hat, Inc.
 #
 # This copyrighted material is made available to anyone wishing to use,
 # modify, copy, or redistribute it subject to the terms and conditions of
@@ -17,76 +19,82 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
-from tests import support
-from tests.support import mock
+
+import rpm
 
 import dnf
 import dnf.goal
-import rpm
 
-class DowngradeTest(support.ResultTestCase):
+import tests.support
+from tests.support import mock
+
+
+class DowngradeTest(tests.support.ResultTestCase):
+
+    REPOS = ["main"]
+    INIT_SACK = True
 
     @mock.patch('dnf.rpm.transaction.TransactionWrapper')
     def test_package_downgrade(self, ts):
-        base = support.MockBase()
-
-        pkgs = base.add_remote_rpms([support.TOUR_44_PKG_PATH])
-        cnt = base.package_downgrade(pkgs[0])
-        base._ts.setProbFilter.assert_called_with(
+        pkgs = self.base.add_remote_rpms([tests.support.TOUR_44_PKG_PATH])
+        cnt = self.base.package_downgrade(pkgs[0])
+        self.base._ts.setProbFilter.assert_called_with(
             rpm.RPMPROB_FILTER_OLDPACKAGE)
         self.assertGreater(cnt, 0)
-        (installed, removed) = self.installed_removed(base)
+        (installed, removed) = self.installed_removed(self.base)
         self.assertCountEqual(map(str, installed), ("tour-4-4.noarch", ))
         self.assertCountEqual(map(str, removed), ("tour-5-0.noarch", ))
 
     def test_downgrade(self):
-        base = support.MockBase("main")
-        sack = base.sack
-        cnt = base.downgrade("tour")
+        cnt = self.base.downgrade("tour")
         self.assertGreater(cnt, 0)
 
-        new_pkg = sack.query().available().filter(name="tour")[0]
+        new_pkg = self.base.sack.query().available().filter(name="tour")[0]
         self.assertEqual(new_pkg.evr, "4.6-1")
-        new_set = support.installed_but(sack, "tour") + [new_pkg]
-        self.assertResult(base, new_set)
+        new_set = tests.support.installed_but(self.base.sack, "tour") + [new_pkg]
+        self.assertResult(self.base, new_set)
 
     def test_downgrade2(self):
-        b = support.MockBase("old_versions")
-        ret = b.downgrade("tour")
-        installed, removed = self.installed_removed(b)
+        # override base with custom repos
+        self.base = tests.support.MockBase("old_versions")
+        self.base.downgrade("tour")
+        installed, removed = self.installed_removed(self.base)
         self.assertCountEqual(map(str, installed), ['tour-4.9-1.noarch'])
         self.assertCountEqual(map(str, removed), ['tour-5-0.noarch'])
 
-class DowngradeTest2(support.TestCase):
+
+class DowngradeTest2(tests.support.DnfBaseTestCase):
+
+    REPOS = ["main"]
+    INIT_SACK = True
 
     def setUp(self):
-        self._base = support.Base()
-        self._base._sack = support.mock_sack('main')
-        self._base._goal = self._goal = mock.create_autospec(dnf.goal.Goal)
+        super(DowngradeTest2, self).setUp()
+        self.base._goal = mock.create_autospec(dnf.goal.Goal)
 
     def test_downgrade_pkgnevra(self):
         """ Downgrade should handle full NEVRAs. """
-        pkg = support.ObjectMatcher(dnf.package.Package, {'name': 'tour'})
+        tests.support.ObjectMatcher(dnf.package.Package, {'name': 'tour'})
         with self.assertRaises(dnf.exceptions.PackagesNotInstalledError):
-            self._base.downgrade('tour-0:5-0.noarch')
+            self.base.downgrade('tour-0:5-0.noarch')
 
     def test_downgrade_notinstalled(self):
-        pkg = support.ObjectMatcher(dnf.package.Package, {'name': 'lotus'})
+        pkg = tests.support.ObjectMatcher(dnf.package.Package, {'name': 'lotus'})
 
         with self.assertRaises(dnf.exceptions.PackagesNotInstalledError) as context:
-            self._base.downgrade('lotus')
+            self.base.downgrade('lotus')
         self.assertEqual(context.exception.pkg_spec, 'lotus')
         self.assertEqual(tuple(context.exception.packages), (pkg,) * 2)
-        self.assertEqual(self._goal.mock_calls, [])
+        self.assertEqual(self.goal.mock_calls, [])
 
     def test_downgrade_notfound(self):
         with self.assertRaises(dnf.exceptions.PackageNotFoundError) as context:
-            self._base.downgrade('non-existent')
+            self.base.downgrade('non-existent')
         self.assertEqual(context.exception.pkg_spec, 'non-existent')
-        self.assertEqual(self._goal.mock_calls, [])
+        self.assertEqual(self.goal.mock_calls, [])
 
     def test_downgrade_nodowngrade(self):
-        downgraded_count = self._base.downgrade('pepper')
+        downgraded_count = self.base.downgrade('pepper')
 
-        self.assertEqual(self._goal.mock_calls, [])
+        self.assertEqual(self.goal.mock_calls, [])
         self.assertEqual(downgraded_count, 0)

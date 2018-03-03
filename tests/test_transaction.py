@@ -1,4 +1,6 @@
-# Copyright (C) 2013-2016 Red Hat, Inc.
+# -*- coding: utf-8 -*-
+
+# Copyright (C) 2013-2018 Red Hat, Inc.
 #
 # This copyrighted material is made available to anyone wishing to use,
 # modify, copy, or redistribute it subject to the terms and conditions of
@@ -17,15 +19,22 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
-from tests.support import mock, FakeConf
+
+import rpm
+from hawkey import SwdbReason
 
 import dnf.goal
 import dnf.repo
 import dnf.transaction
-import rpm
-import tests.support
 
-class TransactionItemTest(tests.support.TestCase):
+import tests.support
+from tests.support import mock
+
+
+class TransactionItemTest(tests.support.DnfBaseTestCase):
+
+    REPOS = ['main', 'search']
+
     @classmethod
     def setUpClass(cls):
         """Prepare the class level fixture."""
@@ -70,51 +79,53 @@ class TransactionItemTest(tests.support.TestCase):
         self.assertCountEqual(tsi.obsoleted, ())
 
     def test_history_iterator_reinstall(self):
-        """Test history_iterator with the reinstall op_type."""
+        """Test self.history_iterator with the reinstall op_type."""
         tsi = dnf.transaction.TransactionItem(
             dnf.transaction.REINSTALL, self.newpkg, self.oldpkg,
             [self.obspkg1, self.obspkg2, self.obspkg3])
         self.assertCountEqual(
             tsi._history_iterator(),
-            [(self.newpkg, 'Reinstall'), (self.oldpkg, 'Reinstalled'),
-             (self.newpkg, 'Obsoleting'), (self.obspkg1, 'Obsoleted'),
-             (self.obspkg2, 'Obsoleted'), (self.obspkg3, 'Obsoleted')])
+            [(self.newpkg, 'Reinstall', True), (self.oldpkg, 'Reinstalled', False),
+             (self.obspkg1, 'Obsoleted', False), (self.obspkg2, 'Obsoleted', False),
+             (self.obspkg3, 'Obsoleted', False)])
 
     def test_history_iterator_upgrade(self):
-        """Test history_iterator with the upgrade op_type."""
+        """Test self.history_iterator with the upgrade op_type."""
         tsi = dnf.transaction.TransactionItem(
             dnf.transaction.UPGRADE, self.newpkg, self.oldpkg,
             [self.obspkg1, self.obspkg2, self.obspkg3])
         self.assertCountEqual(
             tsi._history_iterator(),
-            [(self.newpkg, 'Update'), (self.oldpkg, 'Updated'),
-             (self.newpkg, 'Obsoleting'), (self.obspkg1, 'Obsoleted'),
-             (self.obspkg2, 'Obsoleted'), (self.obspkg3, 'Obsoleted')])
+            [(self.newpkg, 'Update', True), (self.oldpkg, 'Updated', False),
+             (self.obspkg1, 'Obsoleted', False), (self.obspkg2, 'Obsoleted', False),
+             (self.obspkg3, 'Obsoleted', False)])
 
     def test_propagated_reason(self):
-        yumdb = mock.Mock()
-        yumdb.get_package().get = lambda s: 'dep'
-        self.base = tests.support.BaseCliStub()
-        self.base._sack = tests.support.mock_sack('main', 'search')
+
+        pkg1 = self.history.ipkg_to_pkg(self.newpkg)
+        pid = self.history.add_package(pkg1)
+        self.history.swdb.trans_data_beg(1, pid, SwdbReason.DEP, "Installed", False)
+
+        pkg2 = self.history.ipkg_to_pkg(self.oldpkg)
+        pid = self.history.add_package(pkg2)
+        self.history.swdb.trans_data_beg(1, pid, SwdbReason.DEP, "Installed", False)
+
+        ionly = self.sack.query().filter(empty=True)  # installonly_query
+
         tsi = dnf.transaction.TransactionItem(
             dnf.transaction.INSTALL, installed=self.newpkg, reason='user')
-        self.assertEqual(tsi._propagated_reason(yumdb, self.base._sack.query().filter(empty=True)),
-                         'user')
+        self.assertEqual(tsi._propagated_reason(self.history, ionly), SwdbReason.USER)
         tsi = dnf.transaction.TransactionItem(
             dnf.transaction.UPGRADE, installed=self.newpkg, erased=self.oldpkg)
-        self.assertEqual(tsi._propagated_reason(yumdb, self.base._sack.query().filter(empty=True)),
-                         'dep')
+        self.assertEqual(tsi._propagated_reason(self.history, ionly), SwdbReason.DEP)
         tsi = dnf.transaction.TransactionItem(
             dnf.transaction.DOWNGRADE,
             installed=self.newpkg, erased=self.oldpkg)
-        self.assertEqual(tsi._propagated_reason(yumdb, self.base._sack.query().filter(empty=True)),
-                         'dep')
+        self.assertEqual(tsi._propagated_reason(self.history, ionly), SwdbReason.DEP)
 
         # test the call can survive if no reason is known:
-        yumdb = mock.Mock()
-        yumdb.get_package().get = lambda s: None
-        self.assertEqual(tsi._propagated_reason(yumdb, self.base._sack.query().filter(empty=True)),
-                         'unknown')
+        self.history.reset_db()
+        self.assertEqual(tsi._propagated_reason(self.history, ionly), SwdbReason.UNKNOWN)
 
     def test_removes(self):
         tsi = dnf.transaction.TransactionItem(
@@ -123,6 +134,7 @@ class TransactionItemTest(tests.support.TestCase):
         self.assertCountEqual(
             tsi.removes(),
             [self.oldpkg, self.obspkg1, self.obspkg2, self.obspkg3])
+
 
 class TransactionTest(tests.support.TestCase):
     def setUp(self):
@@ -167,6 +179,7 @@ class TransactionTest(tests.support.TestCase):
     def test_total_package_count(self):
         self.assertEqual(self.trans._total_package_count(), 11)
 
+
 class RPMLimitationsTest(tests.support.TestCase):
     def test_rpm_limitations(self):
         ts = dnf.transaction.Transaction()
@@ -175,11 +188,12 @@ class RPMLimitationsTest(tests.support.TestCase):
         msg = ts._rpm_limitations()
         self.assertIsNot(msg, None)
 
+
 class PopulateTSTest(tests.support.TestCase):
     @staticmethod
     def test_populate_rpm_ts():
         ts = dnf.transaction.Transaction()
-        conf = FakeConf(cachedir='/tmp')
+        conf = tests.support.FakeConf(cachedir='/tmp')
         repo = dnf.repo.Repo('r', conf)
 
         inst = tests.support.MockPackage("ago-20.0-1.x86_64.fc69", repo)
@@ -191,31 +205,25 @@ class PopulateTSTest(tests.support.TestCase):
         rpm_ts.assert_has_calls([mock.call.addInstall(None, ts._tsis[0], 'i'),
                                  mock.call.addInstall(None, ts._tsis[1], 'u')])
 
-class RPMProbFilters(tests.support.TestCase):
+
+class RPMProbFilters(tests.support.DnfBaseTestCase):
+
+    REPOS = ['main', 'search']
 
     @mock.patch('dnf.rpm.transaction.TransactionWrapper')
     def test_filters_install(self, _mock_ts):
-        self.base = tests.support.BaseCliStub()
-        self.base._sack = tests.support.mock_sack('main', 'search')
-        self.base._goal = dnf.goal.Goal(self.base.sack)
         self.base.install("lotus")
         ts = self.base._ts
         ts.setProbFilter.assert_called_with(rpm.RPMPROB_FILTER_OLDPACKAGE)
 
     @mock.patch('dnf.rpm.transaction.TransactionWrapper')
     def test_filters_downgrade(self, _ts):
-        self.base = tests.support.BaseCliStub()
-        self.base._sack = tests.support.mock_sack('main', 'old_versions')
-        self.base._goal = dnf.goal.Goal(self.base.sack)
         self.base.downgrade("tour")
         ts = self.base._ts
         ts.setProbFilter.assert_called_with(rpm.RPMPROB_FILTER_OLDPACKAGE)
 
     @mock.patch('dnf.rpm.transaction.TransactionWrapper')
     def test_filters_reinstall(self, _ts):
-        self.base = tests.support.BaseCliStub()
-        self.base._sack = tests.support.mock_sack('main')
-        self.base._goal = dnf.goal.Goal(self.base.sack)
         self.base.reinstall("librita")
         expected = rpm.RPMPROB_FILTER_OLDPACKAGE
         self.base._ts.setProbFilter.assert_called_with(expected)

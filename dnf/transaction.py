@@ -20,6 +20,7 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
+from hawkey import SwdbReason, convert_reason
 from dnf.i18n import _
 from functools import reduce
 import operator
@@ -38,12 +39,12 @@ class TransactionItem(object):
     __slots__ = ('op_type', 'installed', 'erased', 'obsoleted', 'reason')
 
     def __init__(self, op_type, installed=None, erased=None, obsoleted=None,
-                 reason='unknown'):
+                 reason=SwdbReason.UNKNOWN):
         self.op_type = op_type
         self.installed = installed
         self.erased = erased
         self.obsoleted = list() if obsoleted is None else obsoleted
-        self.reason = reason # reason for it to be in the transaction set
+        self.reason = convert_reason(reason)  # reason for it to be in the transaction set
 
     @property
     def _active(self):
@@ -72,15 +73,16 @@ class TransactionItem(object):
         UPGRADE   : 'Updated'
         }
 
+    _HISTORY_ERASE = [DOWNGRADE, ERASE, REINSTALL, UPGRADE]
+
     def _history_iterator(self):
+        obsoleting = True if self.obsoleted else False
         if self.installed is not None:
-            yield(self.installed, self._installed_history_state)
+            yield (self.installed, self._installed_history_state, obsoleting)
         if self.erased is not None:
-            yield(self.erased, self._erased_history_state)
-        if self.obsoleted:
-            yield(self.installed, self._obsoleting_history_state)
+            yield (self.erased, self._erased_history_state, False)
         for obs in self.obsoleted:
-            yield(obs, self._obsoleted_history_state)
+            yield (obs, self._obsoleted_history_state, False)
 
     @property
     def _installed_history_state(self):
@@ -98,29 +100,34 @@ class TransactionItem(object):
     def _obsoleting_history_state(self):
         return 'Obsoleting'
 
-    def _propagated_reason(self, yumdb, installonlypkgs_query):
-        if self.reason == 'user':
+    def _propagated_reason(self, history, installonly):
+        if self.reason == SwdbReason.USER:
             return self.reason
-        if installonlypkgs_query.filter(name=self.installed.name):
-            return 'user'
-        if self.op_type in [DOWNGRADE, REINSTALL, UPGRADE]:
-            previously = yumdb.get_package(self.erased).get('reason')
+        if self.installed and installonly.filter(name=self.installed.name):
+            return SwdbReason.USER
+        if self.op_type in self._HISTORY_ERASE and self.erased:
+            previously = history.reason(self.erased)
             if previously:
                 return previously
         if self.obsoleted:
             reasons = set()
             for obs in self.obsoleted:
-                reasons.add(yumdb.get_package(obs).get('reason'))
+                reasons.add(history.reason(obs))
             if reasons:
-                if 'user' in reasons:
-                    return 'user'
-                if 'group' in reasons:
-                    return 'group'
-                if 'dep' in reasons:
-                    return 'dep'
-                if 'weak' in reasons:
-                    return 'weak'
+                if SwdbReason.USER in reasons:
+                    return SwdbReason.USER
+                if SwdbReason.GROUP in reasons:
+                    return SwdbReason.GROUP
+                if SwdbReason.DEP in reasons:
+                    return SwdbReason.DEP
+                if SwdbReason.WEAK in reasons:
+                    return SwdbReason.WEAK
         return self.reason
+
+    def _propagate_reason(self, history, installonlypkgs):
+        reason = self._propagated_reason(history, installonlypkgs)
+        if reason:
+            self.reason = reason
 
     def removes(self):
         # :api
@@ -157,8 +164,9 @@ class Transaction(object):
         tsi = TransactionItem(ERASE, erased=erased)
         self._tsis.append(tsi)
 
-    def add_install(self, new, obsoleted, reason='unknown'):
+    def add_install(self, new, obsoleted, reason=SwdbReason.UNKNOWN):
         # :api
+        reason = convert_reason(reason)  # support for string reasons
         tsi = TransactionItem(INSTALL, new, obsoleted=obsoleted,
                               reason=reason)
         self._tsis.append(tsi)
@@ -202,6 +210,9 @@ class Transaction(object):
                 # note: in rpm 4.12 there should not be set
                 # rpm.RPMPROB_FILTER_REPLACEPKG to work
                 ts.addReinstall(tsi.installed._header, tsi)
+                if tsi.obsoleted:
+                    for pkg in tsi.obsoleted:
+                        ts.addErase(pkg.idx)
             elif tsi.op_type == UPGRADE:
                 hdr = tsi.installed._header
                 ts.addInstall(hdr, tsi, 'u')
