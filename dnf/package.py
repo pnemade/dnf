@@ -23,6 +23,8 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
 
+from dnf.i18n import _
+
 import binascii
 import dnf.rpm
 import dnf.yum.misc
@@ -112,7 +114,7 @@ class Package(hawkey.Package):
     @property
     def source_name(self):
         # :api
-        """"
+        """
         returns name of source package
         e.g. krb5-libs -> krb5
         """
@@ -131,11 +133,10 @@ class Package(hawkey.Package):
 
     @property
     def _pkgid(self):
-        try:
-            (_, chksum) = self.hdr_chksum
-            return binascii.hexlify(chksum)
-        except AttributeError:
+        if self.hdr_chksum is None:
             return None
+        (_, chksum) = self.hdr_chksum
+        return binascii.hexlify(chksum)
 
     @property # yum compatibility attribute
     def idx(self):
@@ -210,11 +211,11 @@ class Package(hawkey.Package):
         if self._from_cmdline:
             return self.location
         loc = self.location
-        if not self.repo._local:
+        if not self.repo._repo.isLocal():
             loc = os.path.basename(loc)
         elif self.baseurl and self.baseurl.startswith('file://'):
-            return os.path.join(self.baseurl, loc)[7:]
-        return os.path.join(self.repo.pkgdir, loc)
+            return os.path.join(self.baseurl, loc.lstrip("/"))[7:]
+        return os.path.join(self.repo.pkgdir, loc.lstrip("/"))
 
     def remote_location(self, schemes=('http', 'ftp', 'file', 'https')):
         # :api
@@ -237,8 +238,9 @@ class Package(hawkey.Package):
         if not self.location:
             return None
 
-        if self.repo.metadata._mirrors:
-            return schemes_filter(self.repo.metadata._mirrors)
+        mirrors = self.repo._repo.getMirrors()
+        if mirrors:
+            return schemes_filter(mirrors)
         elif self.repo.baseurl:
             if isinstance(self.repo.baseurl, list):
                 return schemes_filter(self.repo.baseurl)
@@ -246,14 +248,18 @@ class Package(hawkey.Package):
                 return schemes_filter([self.repo.baseurl])
 
     def _is_local_pkg(self):
+        if self.repoid == "@System":
+            return True
         return self._from_cmdline or \
-            (self.repo._local and (not self.baseurl or self.baseurl.startswith('file://')))
+            (self.repo._repo.isLocal() and (not self.baseurl or self.baseurl.startswith('file://')))
 
     # yum compatibility method
     def returnIdSum(self):
         """ Return the chksum type and chksum string how the legacy yum expects
             it.
         """
+        if self._chksum is None:
+            return (None, None)
         (chksum_type, chksum) = self._chksum
         return (hawkey.chksum_name(chksum_type), binascii.hexlify(chksum).decode())
 
@@ -267,7 +273,7 @@ class Package(hawkey.Package):
         real_sum = dnf.yum.misc.checksum(chksum_type, self.localPkg(),
                                          datasize=self._size)
         if real_sum != chksum:
-            logger.debug('%s: %s check failed: %s vs %s',
+            logger.debug(_('%s: %s check failed: %s vs %s'),
                          self, chksum_type, real_sum, chksum)
             return False
         return True

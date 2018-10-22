@@ -20,13 +20,14 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
 
-from hawkey import SwdbReason, SwdbTrans
+import libdnf.transaction
 
 import dnf.history
 
 import tests.support
+from tests.support import mock
 
-
+'''
 class NEVRAOperationsTest(tests.support.TestCase):
     """Unit tests of dnf.history.NEVRAOperations."""
 
@@ -171,9 +172,7 @@ class NEVRAOperationsTest(tests.support.TestCase):
              ('Erase', 'tour-0:4.6-1.noarch', None, set())))
 
     def test_add_replaced_opposite(self):
-        """
-        Test add with a replaced NEVRA which replaced a NEVRA before in the opposite direction.
-        """
+        """Test add with a replaced NEVRA which replaced a NEVRA before in the opposite direction."""
         ops = dnf.history.NEVRAOperations()
         ops.add('Downgrade', 'tour-0:4.6-1.noarch', 'tour-0:4.9-1.noarch')
         ops.add('Update', 'tour-0:4.8-1.noarch', 'tour-0:4.6-1.noarch')
@@ -454,13 +453,13 @@ class TransactionConverterTest(tests.support.TestCase):
 
         sack = tests.support.mock_sack('main')
         converter = dnf.history.TransactionConverter(sack)
-        actual = converter.convert(operations, SwdbReason.USER)
+        actual = converter.convert(operations, libdnf.transaction.TransactionItemReason_USER)
 
         expected = dnf.transaction.Transaction()
         expected.add_install(
             next(iter(sack.query().available()._nevra('lotus-3-16.x86_64'))),
             [next(iter(sack.query().installed()._nevra('hole-1-1.x86_64')))],
-            SwdbReason.USER)
+            libdnf.transaction.TransactionItemReason_USER)
         self.assert_transaction_equal(actual, expected)
 
     def test_convert_reinstall(self):
@@ -503,26 +502,4 @@ class TransactionConverterTest(tests.support.TestCase):
         for item in transaction:
             yield (item.op_type, item.installed, item.erased, item.obsoleted,
                    item.reason)
-
-
-class ComparisonTests(tests.support.TestCase):
-
-    def test_transaction(self):
-        t = SwdbTrans
-        a = t.new(1, 5, 5, '', '', '', '', '9', 0)
-        b = t.new(9, 5, 5, '', '', '', '', '9', 0)
-
-        self.assertGreater(a, b)
-        self.assertLess(b, a)
-
-        a2 = t.new(1, 5, 0, '', '', '', '', '9', 0)
-        b2 = t.new(1, 9, 0, '', '', '', '', '9', 0)
-
-        self.assertGreater(a2, b2)
-        self.assertLess(b2, a2)
-
-        a3 = t.new(1, 1, 2, '', '', '', '', '9', 0)
-        b3 = t.new(2, 3, 4, '', '', '', '', '9', 0)
-
-        self.assertGreater(a3, b3)
-        self.assertLess(b3, a3)
+'''

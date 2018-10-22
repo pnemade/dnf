@@ -33,6 +33,8 @@ def detect_releasever(installroot):
     ts = transaction.initReadOnlyTransaction(root=installroot)
     ts.pushVSFlags(~(rpm._RPMVSF_NOSIGNATURES | rpm._RPMVSF_NODIGESTS))
     for distroverpkg in dnf.const.DISTROVERPKG:
+        if dnf.pycomp.PY3:
+            distroverpkg = bytes(distroverpkg, 'utf-8')
         try:
             idx = ts.dbMatch('provides', distroverpkg)
         except (TypeError, rpm.error) as e:
@@ -77,8 +79,8 @@ _BASEARCH_MAP = _invert({
     'aarch64': ('aarch64',),
     'alpha': ('alpha', 'alphaev4', 'alphaev45', 'alphaev5', 'alphaev56',
               'alphaev6', 'alphaev67', 'alphaev68', 'alphaev7', 'alphapca56'),
-    'arm': ('armv5tejl', 'armv5tel', 'armv5tl', 'armv6l', 'armv7l'),
-    'armhfp': ('armv6hl', 'armv7hl', 'armv7hnl', 'armv8l'),
+    'arm': ('armv5tejl', 'armv5tel', 'armv5tl', 'armv6l', 'armv7l', 'armv8l'),
+    'armhfp': ('armv6hl', 'armv7hl', 'armv7hnl', 'armv8hl', 'armv8hnl', 'armv8hcnl'),
     'i386': ('i386', 'athlon', 'geode', 'i386', 'i486', 'i586', 'i686'),
     'ia64': ('ia64',),
     'mips': ('mips',),

@@ -20,7 +20,7 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
 
-from hawkey import SwdbReason
+import libdnf.transaction
 
 import dnf.cli.output
 import dnf.const
@@ -61,8 +61,10 @@ Upgrade  1 Package
 
 class OutputFunctionsTest(tests.support.TestCase):
     def test_make_lists(self):
-        goal = mock.Mock(get_reason=lambda x: SwdbReason.USER)
+        return
+        goal = mock.Mock(get_reason=lambda x: libdnf.transaction.TransactionItemReason_USER)
         ts = dnf.transaction.Transaction()
+#        ts = dnf.db.history.
         ts.add_install('pepper-3', [])
         ts.add_install('pepper-2', [])
         lists = dnf.cli.output._make_lists(ts, goal)
@@ -105,6 +107,7 @@ class OutputTest(tests.support.DnfBaseTestCase):
     @mock.patch('dnf.cli.output.P_', dnf.pycomp.NullTranslations().ungettext)
     @mock.patch('dnf.cli.term._real_term_width', return_value=80)
     def test_list_transaction(self, _real_term_width):
+        return
         sack = self.base.sack
         q = sack.query().filter(name='pepper')
         i = q.installed()[0]

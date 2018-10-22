@@ -20,12 +20,16 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import unicode_literals
+
+import libdnf.transaction
+
 from copy import deepcopy
 from dnf.cli.format import format_number, format_time
-from dnf.i18n import _, P_, ucd, fill_exact_width, textwrap_fill, exact_width
+from dnf.i18n import _, C_, P_, ucd, fill_exact_width, textwrap_fill, exact_width
 from dnf.pycomp import xrange, basestring, long, unicode
 from dnf.yum.rpmtrans import LoggingTransactionDisplay
-from hawkey import SwdbReason
+from dnf.db.history import MergedTransactionWrapper
+import dnf.base
 import dnf.callback
 import dnf.cli.progress
 import dnf.cli.term
@@ -46,70 +50,49 @@ import time
 
 logger = logging.getLogger('dnf')
 
-
 def _make_lists(transaction, goal):
-    def tsi_cmp_key(tsi):
-        return str(tsi._active)
+    b = dnf.util.Bunch({
+        'downgraded': [],
+        'erased': [],
+        'erased_clean': [],
+        'erased_dep': [],
+        'installed': [],
+        'installed_group': [],
+        'installed_dep': [],
+        'installed_weak': [],
+        'reinstalled': [],
+        'upgraded': [],
+        'failed': [],
+    })
 
-    TYPES = ('downgraded',
-             'erased',
-             'erased_clean',
-             'erased_dep',
-             'installed',
-             'installed_group',
-             'installed_dep',
-             'installed_weak',
-             'reinstalled',
-             'upgraded',
-             'failed')
-    b = dnf.util.Bunch()
-    for ttype in TYPES:
-        b[ttype] = []
     for tsi in transaction:
-        if tsi.op_type == dnf.transaction.DOWNGRADE:
+        if tsi.state == libdnf.transaction.TransactionItemState_ERROR:
+            b.failed.append(tsi)
+        elif tsi.action == libdnf.transaction.TransactionItemAction_DOWNGRADE:
             b.downgraded.append(tsi)
-        elif tsi.op_type == dnf.transaction.ERASE:
-            if tsi.erased and goal.get_reason(tsi.erased) == SwdbReason.CLEAN:
+        elif tsi.action == libdnf.transaction.TransactionItemAction_INSTALL:
+            if tsi.reason == libdnf.transaction.TransactionItemReason_GROUP:
+                b.installed_group.append(tsi)
+            elif tsi.reason == libdnf.transaction.TransactionItemReason_DEPENDENCY:
+                b.installed_dep.append(tsi)
+            elif tsi.reason == libdnf.transaction.TransactionItemReason_WEAK_DEPENDENCY:
+                b.installed_weak.append(tsi)
+            else:
+                # TransactionItemReason_USER
+                b.installed.append(tsi)
+        elif tsi.action == libdnf.transaction.TransactionItemAction_REINSTALL:
+            b.reinstalled.append(tsi)
+        elif tsi.action == libdnf.transaction.TransactionItemAction_REMOVE:
+            if tsi.reason == libdnf.transaction.TransactionItemReason_CLEAN:
                 b.erased_clean.append(tsi)
-            elif tsi.erased and goal.get_reason(tsi.erased) == SwdbReason.DEP:
+            elif tsi.reason == libdnf.transaction.TransactionItemReason_DEPENDENCY:
                 b.erased_dep.append(tsi)
             else:
                 b.erased.append(tsi)
-        elif tsi.op_type == dnf.transaction.INSTALL:
-            if tsi.installed:
-                reason = goal.get_reason(tsi.installed)
-                if reason == SwdbReason.USER:
-                    b.installed.append(tsi)
-                    continue
-                elif reason == SwdbReason.GROUP:
-                    b.installed_group.append(tsi)
-                    continue
-                elif reason == SwdbReason.WEAK:
-                    b.installed_weak.append(tsi)
-                    continue
-            b.installed_dep.append(tsi)
-        elif tsi.op_type == dnf.transaction.REINSTALL:
-            b.reinstalled.append(tsi)
-        elif tsi.op_type == dnf.transaction.UPGRADE:
+        elif tsi.action == libdnf.transaction.TransactionItemAction_UPGRADE:
             b.upgraded.append(tsi)
-        elif tsi.op_type == dnf.transaction.FAIL:
-            b.failed.append(tsi)
 
-    for ttype in TYPES:
-        b[ttype].sort(key=tsi_cmp_key)
     return b
-
-_ACTIVE_DCT = {
-    dnf.transaction.DOWNGRADE : operator.attrgetter('installed'),
-    dnf.transaction.ERASE : operator.attrgetter('erased'),
-    dnf.transaction.INSTALL : operator.attrgetter('installed'),
-    dnf.transaction.REINSTALL : operator.attrgetter('installed'),
-    dnf.transaction.UPGRADE : operator.attrgetter('installed'),
-    }
-def _active_pkg(tsi):
-    """Return the package from tsi that takes the active role in the transaction.
-    """
-    return _ACTIVE_DCT[tsi.op_type](tsi)
 
 
 def _spread_in_columns(cols_count, label, lst):
@@ -413,6 +396,7 @@ class Output(object):
             columns = (-40, -22, -16) # Old default
         na = '%s%s.%s' % (indent, pkg.name, pkg.arch)
         hi_cols = [highlight, 'normal', 'normal']
+
         columns = zip((na, pkg.evr, pkg._from_repo), columns, hi_cols)
         print(self.fmtColumns(columns))
 
@@ -506,10 +490,6 @@ class Output(object):
 
         output_list = []
         (hibeg, hiend) = self._highlight(highlight)
-        pkg_data = {}
-        if pkg._from_system:
-            pkg_data = self.history.package_data(pkg)
-
         output_list.append(format_key_val(_("Name"), "%s%s%s" % (hibeg, pkg.name, hiend)))
         if pkg.epoch:
             output_list.append(format_key_val(_("Epoch"), pkg.epoch))
@@ -519,8 +499,11 @@ class Output(object):
         output_list.append(format_key_val(_("Size"), format_number(float(pkg._size))))
         output_list.append(format_key_val(_("Source"), pkg.sourcerpm))
         output_list.append(format_key_val(_("Repo"), pkg.repoid))
-        if pkg_data and pkg_data.from_repo:
-            output_list.append(format_key_val(_("From repo"), pkg_data.from_repo))
+
+        if pkg._from_system:
+            history_repo = self.history.repo(pkg)
+            if history_repo:
+                output_list.append(format_key_val(_("From repo"), history_repo))
         if self.conf.verbose:
             # :hawkey does not support changelog information
             # print(_("Committer   : %s") % ucd(pkg.committer))
@@ -531,21 +514,13 @@ class Output(object):
             if pkg.installtime:
                 output_list.append(format_key_val(_("Install time"),
                                                   dnf.util.normalize_time(pkg.installtime)))
-            if pkg_data:
-                uid = None
-                if pkg_data.installed_by:
-                    try:
-                        uid = int(pkg_data.installed_by)
-                    except ValueError: # In case int() fails
-                        uid = None
+            history_pkg = self.history.package_data(pkg)
+            if history_pkg:
+                try:
+                    uid = int(history_pkg._item.getInstalledBy())
+                except ValueError: # In case int() fails
+                    uid = None
                 output_list.append(format_key_val(_("Installed by"), self._pwd_ui_username(uid)))
-                uid = None
-                if pkg_data.changed_by:
-                    try:
-                        uid = int(pkg_data.changed_by)
-                    except ValueError: # In case int() fails
-                        uid = None
-                output_list.append(format_key_val(_("Changed by"), self._pwd_ui_username(uid)))
         output_list.append(format_key_val_fill(_("Summary"), pkg.summary))
         if pkg.url:
             output_list.append(format_key_val(_("URL"), ucd(pkg.url)))
@@ -1000,7 +975,7 @@ class Output(object):
         if not error:
             logger.info(_("Freed space: %s"), format_number(totsize))
 
-    def list_group_transaction(self, comps, prst, diff):
+    def list_group_transaction(self, comps, history, diff):
         if not diff:
             return None
 
@@ -1017,7 +992,7 @@ class Output(object):
             out.append(_('Marking packages as removed by the group:'))
         for grp_id in diff.removed_groups:
             pkgs = list(diff.removed_packages(grp_id))
-            grp_name = prst.group(grp_id).ui_name
+            grp_name = history.group.get(grp_id).ui_name
             rows.extend(_spread_in_columns(4, "@" + grp_name, pkgs))
 
         if rows:
@@ -1046,14 +1021,15 @@ class Output(object):
         """Return a string representation of the transaction in an
         easy-to-read format.
         """
-
         forward_actions = hawkey.UPGRADE | hawkey.UPGRADE_ALL | hawkey.DISTUPGRADE | \
             hawkey.DISTUPGRADE_ALL | hawkey.DOWNGRADE | hawkey.INSTALL
         skipped_conflicts = set()
         skipped_broken = set()
 
         if transaction is None:
-            return None
+            # set empty transaction list instead of returning None
+            # in order to display module changes when RPM transaction is empty
+            transaction = []
 
         list_bunch = _make_lists(transaction, self.base._goal)
         pkglist_lines = []
@@ -1084,22 +1060,95 @@ class Output(object):
                 data[d][v] += 1
             a_wid = max(a_wid, len(a))
             return a_wid
+        ins_group_msg = _('Installing group/module packages') if dnf.base.WITH_MODULES \
+            else _('Installing group packages')
 
-        for (action, pkglist) in [(_('Installing'), list_bunch.installed),
-                                  (_('Upgrading'), list_bunch.upgraded),
-                                  (_('Reinstalling'), list_bunch.reinstalled),
-                                  (_('Installing group packages'), list_bunch.installed_group),
-                                  (_('Installing dependencies'), list_bunch.installed_dep),
-                                  (_('Installing weak dependencies'), list_bunch.installed_weak),
-                                  (_('Removing'), list_bunch.erased),
-                                  (_('Removing dependent packages'), list_bunch.erased_dep),
-                                  (_('Removing unused dependencies'), list_bunch.erased_clean),
-                                  (_('Downgrading'), list_bunch.downgraded)]:
+        for (action, pkglist) in [
+                # TRANSLATORS: This is for a list of packages to be installed.
+                (C_('summary', 'Installing'), list_bunch.installed),
+                # TRANSLATORS: This is for a list of packages to be upgraded.
+                (C_('summary', 'Upgrading'), list_bunch.upgraded),
+                # TRANSLATORS: This is for a list of packages to be reinstalled.
+                (C_('summary', 'Reinstalling'), list_bunch.reinstalled),
+                (ins_group_msg, list_bunch.installed_group),
+                (_('Installing dependencies'), list_bunch.installed_dep),
+                (_('Installing weak dependencies'), list_bunch.installed_weak),
+                # TRANSLATORS: This is for a list of packages to be removed.
+                (_('Removing'), list_bunch.erased),
+                (_('Removing dependent packages'), list_bunch.erased_dep),
+                (_('Removing unused dependencies'), list_bunch.erased_clean),
+                # TRANSLATORS: This is for a list of packages to be downgraded.
+                (C_('summary', 'Downgrading'), list_bunch.downgraded)]:
             lines = []
-            for tsi in pkglist:
-                active = _active_pkg(tsi)
-                a_wid = _add_line(lines, data, a_wid, active, tsi.obsoleted)
 
+            # build a reverse mapping to 'replaced_by'
+            # this is required to achieve reasonable speed
+            replaces = {}
+            for tsi in transaction:
+                if tsi.action != libdnf.transaction.TransactionItemAction_OBSOLETED:
+                    continue
+                for i in tsi._item.getReplacedBy():
+                    replaces.setdefault(i, set()).add(tsi)
+
+            for tsi in pkglist:
+                if tsi.action not in dnf.transaction.FORWARD_ACTIONS + [libdnf.transaction.TransactionItemAction_REMOVE]:
+                    continue
+
+                # get TransactionItems obsoleted by tsi
+                obsoleted = sorted(replaces.get(tsi._item, []))
+
+                a_wid = _add_line(lines, data, a_wid, tsi.pkg, obsoleted)
+
+            pkglist_lines.append((action, lines))
+
+        installedProfiles = sorted(dict(self.base._moduleContainer.getInstalledProfiles()).items())
+        if installedProfiles:
+            action = "Installing module profiles"
+            lines = []
+            for name, profiles in installedProfiles:
+                for profile in list(profiles):
+                    lines.append(("%s/%s" % (name, profile), "", "", "", "", "", ""))
+            pkglist_lines.append((action, lines))
+
+        removedProfiles = sorted(dict(self.base._moduleContainer.getRemovedProfiles()).items())
+        if removedProfiles:
+            action = "Removing module profiles"
+            lines = []
+            for name, profiles in removedProfiles:
+                for profile in list(profiles):
+                    lines.append(("%s/%s" % (name, profile), "", "", "", "", "", ""))
+            pkglist_lines.append((action, lines))
+
+        enabledStreams = sorted(dict(self.base._moduleContainer.getEnabledStreams()).items())
+        if enabledStreams:
+            action = "Enabling module streams"
+            lines = []
+            for name, stream in enabledStreams:
+                lines.append((name, "", stream, "", "", "", ""))
+            pkglist_lines.append((action, lines))
+
+        switchedStreams = sorted(dict(self.base._moduleContainer.getSwitchedStreams()).items())
+        if switchedStreams:
+            action = "Switching module streams"
+            lines = []
+            for name, stream in switchedStreams:
+                lines.append((name, "", "%s -> %s" % (stream[0], stream[1]), "", "", "", ""))
+            pkglist_lines.append((action, lines))
+
+        disabledStreams = sorted(dict(self.base._moduleContainer.getDisabledStreams()).items())
+        if disabledStreams:
+            action = "Disabling module streams"
+            lines = []
+            for name, stream in disabledStreams:
+                lines.append((name, "", stream, "", "", "", ""))
+            pkglist_lines.append((action, lines))
+
+        resetStreams = sorted(dict(self.base._moduleContainer.getResetStreams()).items())
+        if resetStreams:
+            action = "Resetting module streams"
+            lines = []
+            for name, stream in resetStreams:
+                lines.append((name, "", stream, "", "", "", ""))
             pkglist_lines.append((action, lines))
 
         # show skipped conflicting packages
@@ -1129,7 +1178,7 @@ class Output(object):
 
             pkglist_lines.append((skip_str, lines))
 
-        if not data['n']:
+        if not data['n'] and not self.base._moduleContainer.isChanged():
             return u''
         else:
             data = [data['n'], {}, data['v'], data['r'], {}]
@@ -1277,8 +1326,8 @@ Transaction Summary
                 continue
             msgs = []
             out += '\n%s:\n' % action
-            for pkg in [tsi._active for tsi in tsis]:
-                msgs.append(str(pkg))
+            for tsi in tsis:
+                msgs.append(str(tsi))
             for num in (8, 7, 6, 5, 4, 3, 2):
                 cols = _fits_in_cols(msgs, num)
                 if cols:
@@ -1328,32 +1377,18 @@ Transaction Summary
 
     def _history_uiactions(self, hpkgs):
         actions = set()
+        actions_short = set()
         count = 0
         for pkg in hpkgs:
-            st = pkg.state
-            if st == 'True-Install':
-                st = 'Install'
-            elif st == 'Dep-Install':
-                # Mask these at the higher levels
-                st = 'Install'
-            elif st == 'Obsoleted' or pkg.obsoleting:
-                #  This is just a UI tweak, as we can't have
-                # just one but we need to count them all.
-                st = 'Obsoleting'
-            if st in ('Install', 'Update', 'Erase', 'Reinstall', 'Downgrade',
-                      'Obsoleting'):
-                actions.add(st)
-                count += 1
-        assert len(actions) <= 6
+            if pkg.action in (libdnf.transaction.TransactionItemAction_UPGRADED, libdnf.transaction.TransactionItemAction_DOWNGRADED):
+                # skip states we don't want to display in user input
+                continue
+            actions.add(pkg.action_name)
+            actions_short.add(pkg.action_short)
+            count += 1
+
         if len(actions) > 1:
-            large2small = {'Install'      : _('I'),
-                           'Obsoleting'   : _('O'),
-                           'Erase'        : _('E'),
-                           'Reinstall'    : _('R'),
-                           'Downgrade'    : _('D'),
-                           'Update'       : _('U'),
-                           }
-            return count, ", ".join([large2small[x] for x in sorted(actions)])
+            return count, ", ".join(sorted(actions_short))
 
         # So empty transactions work, although that "shouldn't" really happen
         return count, "".join(list(actions))
@@ -1436,7 +1471,7 @@ Transaction Summary
         last_end = -1 # This just makes displaying it easier...
         for mtid in sorted(rtids):
             if mtid[0] < last_end:
-                msg = ('Skipping merged transaction %d to %d, as it overlaps')
+                msg = _('Skipping merged transaction %d to %d, as it overlaps')
                 logger.warning(msg, mtid[0], mtid[1])
                 continue # Don't do overlapping
             last_end = mtid[1]
@@ -1585,7 +1620,7 @@ Transaction Summary
             if lastdbv is not None and trans.tid == lasttid:
                 #  If this is the last transaction, is good and it doesn't
                 # match the current rpmdb ... then mark it as bad.
-                rpmdbv = self.sack._rpmdb_version(self.history)
+                rpmdbv = self.sack._rpmdb_version()
                 trans.compare_rpmdbv(str(rpmdbv))
             lastdbv = None
 
@@ -1593,7 +1628,7 @@ Transaction Summary
 
             if trans.tid >= bmtid and trans.tid <= emtid:
                 if mobj is None:
-                    mobj = trans
+                    mobj = MergedTransactionWrapper(trans)
                 else:
                     mobj.merge(trans)
                 merged = True
@@ -1623,7 +1658,10 @@ Transaction Summary
             self._historyInfoCmd(mobj)
 
     def _historyInfoCmd(self, old, pats=[]):
-        name = self._pwd_ui_username(old.loginuid)
+        loginuid = old.loginuid
+        if isinstance(loginuid, int):
+            loginuid = [loginuid]
+        name = [self._pwd_ui_username(uid) for uid in loginuid]
 
         _pkg_states_installed = {'i' : _('Installed'), 'e' : _('Erased'),
                                  'o' : _('Upgraded'), 'n' : _('Downgraded')}
@@ -1705,18 +1743,24 @@ Transaction Summary
                 print(_("End rpmdb      :"), old.end_rpmdb_version, "**")
             else:
                 print(_("End rpmdb      :"), old.end_rpmdb_version)
-        if isinstance(name, list):
-            for name in name:
-                print(_("User           :"), name)
+        if isinstance(name, (list, tuple)):
+            seen = set()
+            for i in name:
+                if i in seen:
+                    continue
+                seen.add(i)
+                print(_("User           :"), i)
         else:
             print(_("User           :"), name)
-        if isinstance(old.return_code, list):
+        if isinstance(old.return_code, (list, tuple)):
             codes = old.return_code
             if codes[0] is None:
                 print(_("Return-Code    :"), "**", _("Aborted"), "**")
                 codes = codes[1:]
-            if codes:
-                print(_("Return-Code    :"), _("Failures:"), ", ".join(codes))
+            elif not all(codes):
+                print(_("Return-Code    :"), _("Success"))
+            elif codes:
+                print(_("Return-Code    :"), _("Failures:"), ", ".join([str(i) for i in codes]))
         elif old.return_code is None:
             print(_("Return-Code    :"), "**", _("Aborted"), "**")
         elif old.return_code:
@@ -1724,24 +1768,26 @@ Transaction Summary
         else:
             print(_("Return-Code    :"), _("Success"))
 
+        if isinstance(old.releasever, (list, tuple)):
+            seen = set()
+            for i in old.releasever:
+                if i in seen:
+                    continue
+                seen.add(i)
+            print(_("Releasever     :"), i)
+        else:
+            print(_("Releasever     :"), old.releasever)
+
         if old.cmdline is not None:
-            if isinstance(old.cmdline, list):
+            if isinstance(old.cmdline, (list, tuple)):
                 for cmdline in old.cmdline:
                     print(_("Command Line   :"), cmdline)
             else:
                 print(_("Command Line   :"), old.cmdline)
 
-        if len(tids) == 1:
-            addon_info = self.history.addon_data.read(tids[0])
-
-            # for the ones we create by default - don't display them as there
-            default_addons = set(['config-main', 'config-repos', 'transaction-comment'])
-            non_default = set(addon_info).difference(default_addons)
-            if len(non_default) > 0:
-                print(_("Additional non-default information stored: %d") % \
-                          len(non_default))
-
-        comment = self.history.addon_data.read(old.tid, item='transaction-comment')
+        # TODO:
+        # comment = self.history.addon_data.read(old.tid, item='transaction-comment')
+        comment = ""
         if comment:
             print(_("Comment        :"), comment)
 
@@ -1775,6 +1821,7 @@ Transaction Summary
                 num += 1
                 print("%4d" % num, line)
 
+    # TODO: remove
     _history_state2uistate = {'True-Install' : _('Install'),
                               'Install'      : _('Install'),
                               'Dep-Install'  : _('Dep-Install'),
@@ -1806,7 +1853,7 @@ Transaction Summary
         packages = old.packages()
 
         for pkg in packages:
-            uistate = all_uistates.get(pkg.state, pkg.state)
+            uistate = all_uistates.get(pkg.action_name, pkg.action_name)
             if maxlen < len(uistate):
                 maxlen = len(uistate)
             pkg_len = len(str(pkg))
@@ -1815,7 +1862,7 @@ Transaction Summary
 
         for pkg in packages:
             prefix = " " * 4
-            if not pkg.done:
+            if pkg.state != libdnf.transaction.TransactionItemState_DONE:
                 prefix = " ** "
 
             highlight = 'normal'
@@ -1826,22 +1873,22 @@ Transaction Summary
 
             cn = str(pkg)
 
-            uistate = all_uistates.get(pkg.state, pkg.state)
+            uistate = all_uistates.get(pkg.action_name, pkg.action_name)
             uistate = fill_exact_width(ucd(uistate), maxlen)
 
-            if (last is not None and last.state == 'Updated' and
-                    last.name == pkg.name and pkg.state == 'Update'):
+            if (last is not None and last.action == libdnf.transaction.TransactionItemAction_UPGRADED and
+                    last.name == pkg.name and pkg.action == libdnf.transaction.TransactionItemAction_UPGRADE):
 
                 ln = len(pkg.name) + 1
                 cn = (" " * ln) + cn[ln:]
-            elif (last is not None and last.state == 'Downgrade' and
-                  last.name == pkg.name and pkg.state == 'Downgraded'):
+            elif (last is not None and last.action == libdnf.transaction.TransactionItemAction_DOWNGRADE and
+                  last.name == pkg.name and pkg.action == libdnf.transaction.TransactionItemAction_DOWNGRADED):
 
                 ln = len(pkg.name) + 1
                 cn = (" " * ln) + cn[ln:]
             else:
                 last = None
-                if pkg.state in ('Updated', 'Downgrade'):
+                if pkg.action in (libdnf.transaction.TransactionItemAction_UPGRADED, libdnf.transaction.TransactionItemAction_DOWNGRADE):
                     last = pkg
             print("%s%s%s%s %-*s %s" % (prefix, hibeg, uistate, hiend,
                                         pkg_max_len, str(pkg),
@@ -1901,25 +1948,25 @@ Transaction Summary
                     if not any([pkg.match(pat) for pat in extcmds]):
                         continue
 
-                uistate = all_uistates.get(pkg.state, pkg.state)
+                uistate = all_uistates.get(pkg.action_name, pkg.action_name)
                 uistate = fill_exact_width(uistate, 14)
 
                 #  To chop the name off we need nevra strings, str(pkg) gives
                 # envra so we have to do it by hand ... *sigh*.
                 cn = pkg.ui_nevra
 
-                if (last is not None and last.state == 'Updated' and
-                        last.name == pkg.name and pkg.state == 'Update'):
+                if (last is not None and last.action == libdnf.transaction.TransactionItemAction_UPGRADED and
+                        last.name == pkg.name and pkg.action == libdnf.transaction.TransactionItemAction_UPGRADE):
                     ln = len(pkg.name) + 1
                     cn = (" " * ln) + cn[ln:]
                 elif (last is not None and
-                      last.state == 'Downgrade' and last.name == pkg.name and
-                      pkg.state == 'Downgraded'):
+                      last.action == libdnf.transaction.TransactionItemAction_DOWNGRADE and last.name == pkg.name and
+                      pkg.action == libdnf.transaction.TransactionItemAction_DOWNGRADED):
                     ln = len(pkg.name) + 1
                     cn = (" " * ln) + cn[ln:]
                 else:
                     last = None
-                    if pkg.state in ('Updated', 'Downgrade'):
+                    if pkg.action in (libdnf.transaction.TransactionItemAction_UPGRADED, libdnf.transaction.TransactionItemAction_DOWNGRADE):
                         last = pkg
 
                 num += 1
@@ -1990,8 +2037,21 @@ class CliKeyImport(dnf.callback.KeyImport):
         self.base = base
         self.output = output
 
-    def _confirm(self, keyinfo):
-        dnf.crypto.log_key_import(keyinfo)
+    def _confirm(self, id, userid, fingerprint, url, timestamp):
+
+        def short_id(id):
+            rj = '0' if dnf.pycomp.PY3 else b'0'
+            return id[-8:].rjust(8, rj)
+
+        msg = (_('Importing GPG key 0x%s:\n'
+                 ' Userid     : "%s"\n'
+                 ' Fingerprint: %s\n'
+                 ' From       : %s') %
+               (short_id(id), userid,
+                dnf.crypto._printable_fingerprint(fingerprint),
+                url.replace("file://", "")))
+        logger.critical("%s", msg)
+
         if self.base.conf.assumeyes:
             return True
         if self.base.conf.assumeno:
@@ -2000,7 +2060,7 @@ class CliKeyImport(dnf.callback.KeyImport):
 
 
 class CliTransactionDisplay(LoggingTransactionDisplay):
-    """A Yum specific callback class for RPM operations."""
+    """A YUM specific callback class for RPM operations."""
 
     width = property(lambda self: dnf.cli.term._term_width())
 
@@ -2031,8 +2091,8 @@ class CliTransactionDisplay(LoggingTransactionDisplay):
         :param ts_total: the total number of transactions in the
            transaction set
         """
-        process = self.action.get(action)
-        if process is None:
+        action_str = dnf.transaction.ACTIONS.get(action)
+        if action_str is None:
             return
 
         wid1 = self._max_action_width()
@@ -2044,12 +2104,12 @@ class CliTransactionDisplay(LoggingTransactionDisplay):
         else:
             percent = (ti_done*long(100))//ti_total
         self._out_progress(ti_done, ti_total, ts_done, ts_total,
-                           percent, process, pkgname, wid1)
+                           percent, action_str, pkgname, wid1)
 
     def _max_action_width(self):
         if not hasattr(self, '_max_action_wid_cache'):
             wid1 = 0
-            for val in self.action.values():
+            for val in dnf.transaction.ACTIONS.values():
                 wid_val = exact_width(val)
                 if wid1 < wid_val:
                     wid1 = wid_val
@@ -2075,13 +2135,16 @@ class CliTransactionDisplay(LoggingTransactionDisplay):
     def filelog(self, package, action):
         pass
 
+    def error(self, message):
+        pass
+
     def scriptout(self, msgs):
         """Print messages originating from a package script.
 
         :param msgs: the messages coming from the script
         """
         if msgs:
-            dnf.util._terminal_messenger('write_flush', ucd(msgs), sys.stdout)
+            self.rpm_logger.info(ucd(msgs))
 
     def _makefmt(self, percent, ts_done, ts_total, progress=True,
                  pkgname=None, wid1=15):

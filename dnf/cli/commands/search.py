@@ -21,6 +21,9 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import unicode_literals
+
+import collections
+
 from dnf.cli import commands
 from dnf.cli.option_parser import OptionParser
 from dnf.i18n import ucd, _
@@ -53,11 +56,12 @@ class SearchCommand(commands.Command):
     def _search(self, args):
         """Search for simple text tags in a package object."""
 
-        TRANS_TBL = {'name': _('Name'),
-                     'summary': _('Summary'),
-                     'description': _('Description'),
-                     'url': _('URL')
-                     }
+        TRANS_TBL = collections.OrderedDict((
+            ('name', _('Name')),
+            ('summary', _('Summary')),
+            ('description', _('Description')),
+            ('url', _('URL')),
+        ))
 
         def _translate_attr(attr):
             try:
@@ -85,10 +89,16 @@ class SearchCommand(commands.Command):
             self._search_counted(counter, 'name', arg)
             self._search_counted(counter, 'summary', arg)
 
-        if self.opts.all or counter.total() == 0:
+        if self.opts.all:
             for arg in args:
                 self._search_counted(counter, 'description', arg)
                 self._search_counted(counter, 'url', arg)
+        else:
+            needles = len(args)
+            pkgs = list(counter.keys())
+            for pkg in pkgs:
+                if len(counter.matched_needles(pkg)) != needles:
+                    del counter[pkg]
 
         used_attrs = None
         matched_needles = None
@@ -129,6 +139,8 @@ class SearchCommand(commands.Command):
             self.cli.redirect_logger(stdout=logging.WARNING, stderr=logging.INFO)
 
     def configure(self):
+        if not self.opts.verbose and not self.opts.quiet:
+            self.cli.redirect_repo_progress()
         demands = self.cli.demands
         demands.available_repos = True
         demands.fresh_metadata = False

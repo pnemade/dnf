@@ -26,11 +26,63 @@ import contextlib
 import dnf.pycomp
 import dnf.util
 import dnf.yum.misc
-import gpg
 import io
 import logging
 import os
 import tempfile
+
+try:
+    from gpg import Context
+    from gpg import Data
+except ImportError:
+    import gpgme
+
+
+    class Context(object):
+        def __init__(self):
+            self.__dict__["ctx"] = gpgme.Context()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, type, value, tb):
+            pass
+
+        @property
+        def armor(self):
+            return self.ctx.armor
+
+        @armor.setter
+        def armor(self, value):
+            self.ctx.armor = value
+
+        def op_import(self, key_fo):
+            if isinstance(key_fo, basestring):
+                key_fo = io.BytesIO(key_fo)
+            self.ctx.import_(key_fo)
+
+        def op_export(self, pattern, mode, keydata):
+            self.ctx.export(pattern, keydata)
+
+        def __getattr__(self, name):
+            return getattr(self.ctx, name)
+
+
+    class Data(object):
+        def __init__(self):
+            self.__dict__["buf"] = io.BytesIO()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, type, value, tb):
+            pass
+
+        def read(self):
+            return self.buf.getvalue()
+
+        def __getattr__(self, name):
+            return getattr(self.buf, name)
 
 
 GPG_HOME_ENV = 'GNUPGHOME'
@@ -50,24 +102,24 @@ def import_repo_keys(repo):
     gpgdir = repo._pubring_dir
     known_keys = keyids_from_pubring(gpgdir)
     for keyurl in repo.gpgkey:
-        for keyinfo in retrieve(keyurl):
+        for keyinfo in retrieve(keyurl, repo):
             keyid = keyinfo.id_
             if keyid in known_keys:
-                logger.debug('repo %s: 0x%s already imported', repo.id, keyid)
+                logger.debug(_('repo %s: 0x%s already imported'), repo.id, keyid)
                 continue
             if not repo._key_import._confirm(keyinfo):
                 continue
             dnf.yum.misc.import_key_to_pubring(
                 keyinfo.raw_key, keyinfo.short_id, gpgdir=gpgdir,
                 make_ro_copy=False)
-            logger.debug('repo %s: imported key 0x%s.', repo.id, keyid)
+            logger.debug(_('repo %s: imported key 0x%s.'), repo.id, keyid)
 
 
 def keyids_from_pubring(gpgdir):
     if not os.path.exists(gpgdir):
         return []
 
-    with pubring_dir(gpgdir), gpg.Context() as ctx:
+    with pubring_dir(gpgdir), Context() as ctx:
         keyids = []
         for k in ctx.keylist():
             subkey = _extract_signing_subkey(k)
@@ -103,7 +155,7 @@ def pubring_dir(pubring_dir):
 def rawkey2infos(key_fo):
     pb_dir = tempfile.mkdtemp()
     keyinfos = []
-    with pubring_dir(pb_dir), gpg.Context() as ctx:
+    with pubring_dir(pb_dir), Context() as ctx:
         ctx.op_import(key_fo)
         for key in ctx.keylist():
             subkey = _extract_signing_subkey(key)
@@ -112,7 +164,7 @@ def rawkey2infos(key_fo):
             keyinfos.append(Key(key, subkey))
         ctx.armor = True
         for info in keyinfos:
-            with gpg.Data() as sink:
+            with Data() as sink:
                 ctx.op_export(info.id_, 0, sink)
                 sink.seek(0, os.SEEK_SET)
                 info.raw_key = sink.read()

@@ -38,18 +38,13 @@ class MakeCacheCommand(commands.Command):
 
     @staticmethod
     def set_argparser(parser):
-        parser.add_argument('--timer', action='store_true')
+        parser.add_argument('--timer', action='store_true', dest="timer_opt")
         # compatibility with dnf < 2.0
         parser.add_argument('timer', nargs='?', choices=['timer'],
                             metavar='timer', help=argparse.SUPPRESS)
 
-    def configure(self):
-        """Verify that conditions are met so that this command can
-        run; namely that there is an enabled repository.
-        """
-        commands._checkEnabledRepo(self.base)
-
     def run(self):
+        timer = self.opts.timer is not None or self.opts.timer_opt
         msg = _("Making cache files for all metadata files.")
         logger.debug(msg)
-        return self.base.update_cache(self.opts.timer is not None)
+        return self.base.update_cache(timer)

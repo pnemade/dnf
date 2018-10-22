@@ -23,9 +23,11 @@ Classes for subcommands of the yum command line interface.
 
 from __future__ import print_function
 from __future__ import unicode_literals
+
+import libdnf
+
 from dnf.cli.option_parser import OptionParser
 from dnf.i18n import _, ucd
-from hawkey import SwdbReason
 
 import argparse
 import dnf.cli
@@ -34,6 +36,7 @@ import dnf.const
 import dnf.exceptions
 import dnf.i18n
 import dnf.pycomp
+import dnf.transaction
 import dnf.util
 import functools
 import logging
@@ -248,7 +251,7 @@ class ProvidesCommand(Command):
         demands.sack_activation = True
 
     def run(self):
-        logger.debug("Searching Packages: ")
+        logger.debug(_("Searching Packages: "))
         return self.base.provides(self.opts.dependency)
 
 class CheckUpdateCommand(Command):
@@ -843,7 +846,7 @@ class HistoryCommand(Command):
             demands.fresh_metadata = False
         demands.sack_activation = True
         demands.root_user = True
-        if not os.access(self.base.history.get_path(), os.R_OK):
+        if not os.access(self.base.history.path, os.R_OK):
             logger.critical(_("You don't have access to the history DB."))
             raise dnf.cli.CliError
         self.transaction_ids = self._args2transaction_ids(self.merged_transaction_ids,
@@ -873,27 +876,24 @@ class HistoryCommand(Command):
         print('Repeating transaction %u, from %s' % (old.tid, tm))
         self.output.historyInfoCmdPkgsAltered(old)
 
-        converter = dnf.history.TransactionConverter(self.base.sack)
-        history = dnf.history.open_history(self.base.history)
-        operations = history.transaction_nevra_ops(old.tid)
+        for i in old.packages():
+            pkgs = list(self.base.sack.query().filter(nevra=str(i), reponame=i.from_repo))
+            if i.action in dnf.transaction.FORWARD_ACTIONS:
+                if not pkgs:
+                    logger.info(_('No package %s available.'),
+                    self.output.term.bold(ucd(str(i))))
+                    return 1, ['An operation cannot be redone']
+                pkg = pkgs[0]
+                self.base.install(str(pkg))
+            elif i.action == libdnf.transaction.TransactionItemAction_REMOVE:
+                if not pkgs:
+                    # package was removed already, we can skip removing it again
+                    continue
+                pkg = pkgs[0]
+                self.base.remove(str(pkg))
 
-        # FIXME this is wrong. Will be fixed in new swdb design.
-        #   Reason of a package installed in the original transaction is lost in the
-        #   operation above and replaced by reason USER (in the operation below).
-        #   (dependencies are promoted to user installed packages)
-
-        try:
-            self.base.transaction = converter.convert(operations, SwdbReason.USER)
-        except dnf.exceptions.PackagesNotInstalledError as err:
-            logger.info(_('No package %s installed.'),
-                        self.output.term.bold(ucd(err.pkg_spec)))
-            return 1, ['An operation cannot be redone']
-        except dnf.exceptions.PackagesNotAvailableError as err:
-            logger.info(_('No package %s available.'),
-                        self.output.term.bold(ucd(err.pkg_spec)))
-            return 1, ['An operation cannot be redone']
-        else:
-            return 2, ['Repeating transaction %u' % (old.tid,)]
+        self.base.resolve()
+        self.base.do_transaction()
 
     def _hcmd_undo(self, extcmds):
         try:
@@ -937,8 +937,8 @@ class HistoryCommand(Command):
                           "Use '<transaction-id>..<transaction-id>'."
                           ).format(t))
                     raise dnf.cli.CliError
-                cant_convert_msg = "Can't convert '{}' to transaction ID.\n" \
-                                   "Use '<integer>', 'last', 'last-<positive-integer>'."
+                cant_convert_msg = _("Can't convert '{}' to transaction ID.\n"
+                                     "Use '<integer>', 'last', 'last-<positive-integer>'.")
                 try:
                     begin_transaction_id = str2transaction_id(begin_transaction_id)
                 except ValueError:

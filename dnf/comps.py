@@ -1,7 +1,7 @@
 # comps.py
 # Interface to libcomps.
 #
-# Copyright (C) 2013-2016 Red Hat, Inc.
+# Copyright (C) 2013-2018 Red Hat, Inc.
 #
 # This copyrighted material is made available to anyone wishing to use,
 # modify, copy, or redistribute it subject to the terms and conditions of
@@ -21,10 +21,12 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import unicode_literals
+
+import libdnf.transaction
+
 from dnf.exceptions import CompsError
 from dnf.i18n import _, ucd
 from functools import reduce
-from hawkey import SwdbEnv, SwdbGroup
 
 import dnf.i18n
 import dnf.util
@@ -41,10 +43,10 @@ import sys
 logger = logging.getLogger("dnf")
 
 # :api :binformat
-CONDITIONAL = 1
-DEFAULT     = 2
-MANDATORY   = 4
-OPTIONAL    = 8
+CONDITIONAL = libdnf.transaction.CompsPackageType_CONDITIONAL
+DEFAULT     = libdnf.transaction.CompsPackageType_DEFAULT
+MANDATORY   = libdnf.transaction.CompsPackageType_MANDATORY
+OPTIONAL    = libdnf.transaction.CompsPackageType_OPTIONAL
 
 ALL_TYPES = CONDITIONAL | DEFAULT | MANDATORY | OPTIONAL
 
@@ -81,14 +83,14 @@ def _fn_display_order(group):
 
 
 def install_or_skip(install_fnc, grp_or_env_id, types, exclude=None,
-                    strict=True):
+                    strict=True, exclude_groups=None):
     """Either mark in persistor as installed given `grp_or_env` (group
        or environment) or skip it (if it's already installed).
        `install_fnc` has to be Solver._group_install
        or Solver._environment_install.
        """
     try:
-        return install_fnc(grp_or_env_id, types, exclude, strict)
+        return install_fnc(grp_or_env_id, types, exclude, strict, exclude_groups)
     except dnf.comps.CompsError as e:
         logger.warning("%s, %s", ucd(e)[:-1], _("skipping."))
 
@@ -134,18 +136,34 @@ class CompsQuery(object):
     ENVIRONMENTS = 1
     GROUPS = 2
 
-    def __init__(self, comps, prst, kinds, status):
+    def __init__(self, comps, history, kinds, status):
         self.comps = comps
-        self.prst = prst
+        self.history = history
         self.kinds = kinds
         self.status = status
 
-    def _get(self, available, installed):
+    def _get_groups(self, available, installed):
         result = set()
         if self.status & self.AVAILABLE:
-            result.update({g.id for g in available})
+            result.update({i.id for i in available})
         if self.status & self.INSTALLED:
-            result.update(installed)
+            for i in installed:
+                group = i.getCompsGroupItem()
+                if not group:
+                    continue
+                result.add(group.getGroupId())
+        return result
+
+    def _get_envs(self, available, installed):
+        result = set()
+        if self.status & self.AVAILABLE:
+            result.update({i.id for i in available})
+        if self.status & self.INSTALLED:
+            for i in installed:
+                env = i.getCompsEnvironmentItem()
+                if not env:
+                    continue
+                result.add(env.getEnvironmentId())
         return result
 
     def get(self, *patterns):
@@ -156,15 +174,13 @@ class CompsQuery(object):
             envs = grps = []
             if self.kinds & self.ENVIRONMENTS:
                 available = self.comps.environments_by_pattern(pat)
-                installed = self.prst.environments_by_pattern(pat)
-                envs = self._get(available,
-                                 installed)
+                installed = self.history.env.search_by_pattern(pat)
+                envs = self._get_envs(available, installed)
                 res.environments.extend(envs)
             if self.kinds & self.GROUPS:
                 available = self.comps.groups_by_pattern(pat)
-                installed = self.prst.groups_by_pattern(pat)
-                grps = self._get(available,
-                                 installed)
+                installed = self.history.group.search_by_pattern(pat)
+                grps = self._get_groups(available, installed)
                 res.groups.extend(grps)
             if not envs and not grps:
                 if self.status == self.INSTALLED:
@@ -233,17 +249,30 @@ class Environment(Forwarder):
             raise ValueError(msg % (grp_id.name, self.id))
         return grp
 
+    def _build_groups(self, ids):
+        groups = []
+        for gi in ids:
+            try:
+                groups.append(self._build_group(gi))
+            except ValueError as e:
+                logger.error(e)
+
+        return groups
+
     def groups_iter(self):
         for grp_id in itertools.chain(self.group_ids, self.option_ids):
-            yield self._build_group(grp_id)
+            try:
+                yield self._build_group(grp_id)
+            except ValueError as e:
+                logger.error(e)
 
     @property
     def mandatory_groups(self):
-        return [self._build_group(gi) for gi in self.group_ids]
+        return self._build_groups(self.group_ids)
 
     @property
     def optional_groups(self):
-        return [self._build_group(gi) for gi in self.option_ids]
+        return self._build_groups(self.option_ids)
 
 class Group(Forwarder):
     # :api
@@ -340,11 +369,13 @@ class Comps(object):
 
     def category_by_pattern(self, pattern, case_sensitive=False):
         # :api
+        assert dnf.util.is_string_type(pattern)
         cats = self.categories_by_pattern(pattern, case_sensitive)
         return _first_if_iterable(cats)
 
     def categories_by_pattern(self, pattern, case_sensitive=False):
         # :api
+        assert dnf.util.is_string_type(pattern)
         return _by_pattern(pattern, case_sensitive, self.categories)
 
     def categories_iter(self):
@@ -357,15 +388,18 @@ class Comps(object):
         return sorted(self.environments_iter(), key=_fn_display_order)
 
     def _environment_by_id(self, id):
+        assert dnf.util.is_string_type(id)
         return dnf.util.first(g for g in self.environments_iter() if g.id == id)
 
     def environment_by_pattern(self, pattern, case_sensitive=False):
         # :api
+        assert dnf.util.is_string_type(pattern)
         envs = self.environments_by_pattern(pattern, case_sensitive)
         return _first_if_iterable(envs)
 
     def environments_by_pattern(self, pattern, case_sensitive=False):
         # :api
+        assert dnf.util.is_string_type(pattern)
         envs = list(self.environments_iter())
         found_envs = _by_pattern(pattern, case_sensitive, envs)
         return sorted(found_envs, key=_fn_display_order)
@@ -380,15 +414,18 @@ class Comps(object):
         return sorted(self.groups_iter(), key=_fn_display_order)
 
     def _group_by_id(self, id_):
+        assert dnf.util.is_string_type(id_)
         return dnf.util.first(g for g in self.groups_iter() if g.id == id_)
 
     def group_by_pattern(self, pattern, case_sensitive=False):
         # :api
+        assert dnf.util.is_string_type(pattern)
         grps = self.groups_by_pattern(pattern, case_sensitive)
         return _first_if_iterable(grps)
 
     def groups_by_pattern(self, pattern, case_sensitive=False):
         # :api
+        assert dnf.util.is_string_type(pattern)
         grps = _by_pattern(pattern, case_sensitive, list(self.groups_iter()))
         return sorted(grps, key=_fn_display_order)
 
@@ -396,15 +433,26 @@ class Comps(object):
         # :api
         return (self._build_group(g) for g in self._i.groups)
 
-
 class CompsTransPkg(object):
     def __init__(self, pkg_or_name):
         if dnf.util.is_string_type(pkg_or_name):
+            # from package name
             self.basearchonly = False
             self.name = pkg_or_name
             self.optional = True
             self.requires = None
+        elif isinstance(pkg_or_name, libdnf.transaction.CompsGroupPackage):
+            # from swdb package
+            # TODO:
+            self.basearchonly = False
+            # self.basearchonly = pkg_or_name.basearchonly
+            self.name = pkg_or_name.getName()
+            self.optional = pkg_or_name.getPackageType() & libcomps.PACKAGE_TYPE_OPTIONAL
+            # TODO:
+            self.requires = None
+            # self.requires = pkg_or_name.requires
         else:
+            # from comps package
             self.basearchonly = pkg_or_name.basearchonly
             self.name = pkg_or_name.name
             self.optional = pkg_or_name.type & libcomps.PACKAGE_TYPE_OPTIONAL
@@ -425,22 +473,23 @@ class CompsTransPkg(object):
                     self.optional,
                     self.requires))
 
-
 class TransactionBunch(object):
     def __init__(self):
         self._install = set()
+        self._install_opt = set()
         self._remove = set()
         self._upgrade = set()
 
     def __iadd__(self, other):
         self._install.update(other._install)
+        self._install_opt.update(other._install_opt)
         self._upgrade.update(other._upgrade)
         self._remove = (self._remove | other._remove) - \
-            self._install - self._upgrade
+            self._install - self._install_opt - self._upgrade
         return self
 
     def __len__(self):
-        return len(self.install) + len(self.upgrade) + len(self.remove)
+        return len(self.install) + len(self.install_opt) + len(self.upgrade) + len(self.remove)
 
     @staticmethod
     def _set_value(param, val):
@@ -452,11 +501,27 @@ class TransactionBunch(object):
 
     @property
     def install(self):
+        """
+        Packages to be installed with strict=True - transaction will
+        fail if they cannot be installed due to dependency errors etc.
+        """
         return self._install
 
     @install.setter
     def install(self, value):
         self._set_value(self._install, value)
+
+    @property
+    def install_opt(self):
+        """
+        Packages to be installed with strict=False - they will be
+        skipped if they cannot be installed
+        """
+        return self._install_opt
+
+    @install_opt.setter
+    def install_opt(self, value):
+        self._set_value(self._install_opt, value)
 
     @property
     def remove(self):
@@ -476,9 +541,9 @@ class TransactionBunch(object):
 
 
 class Solver(object):
-    def __init__(self, persistor, comps, reason_fn):
+    def __init__(self, history, comps, reason_fn):
+        self.history = history
         self.comps = comps
-        self.persistor = persistor
         self._reason_fn = reason_fn
 
     @staticmethod
@@ -487,7 +552,7 @@ class Solver(object):
 
     @staticmethod
     def _full_package_set(grp):
-        return {pkg.name for pkg in grp.mandatory_packages +
+        return {pkg.getName() for pkg in grp.mandatory_packages +
                 grp.default_packages + grp.optional_packages +
                 grp.conditional_packages}
 
@@ -509,141 +574,125 @@ class Solver(object):
         return pkgs
 
     def _removable_pkg(self, pkg_name):
-        return self.persistor.removable_pkg(pkg_name)
+        assert dnf.util.is_string_type(pkg_name)
+        return self.history.group.is_removable_pkg(pkg_name)
 
-    def _removable_grp(self, grp_name):
-        prst = self.persistor
-        count = 0
-        if not prst.group(grp_name).installed:
-            return False
-        for p_env in prst.environments():
-            count += sum(1 for grp in p_env.get_group_list() if grp == grp_name)
-        return count < 2
+    def _removable_grp(self, group_id):
+        assert dnf.util.is_string_type(group_id)
+        return self.history.env.is_removable_group(group_id)
 
-    def _environment_install(self, env_id, pkg_types, exclude, strict=True):
-        if isinstance(env_id, SwdbEnv):
-            env_id = env_id.name_id
-        env = self.comps._environment_by_id(env_id)
-        p_env = self.persistor.environment(env_id)
-        if p_env and p_env.installed:
-            logger.warning(_("Environment '%s' is already installed.") %
-                           env.ui_name)
-        else:
-            grp_types = CONDITIONAL | DEFAULT | MANDATORY | OPTIONAL
-            p_env = self.persistor.new_env(env_id, env.name, env.ui_name,
-                                           pkg_types, grp_types)
-            self.persistor.add_env(p_env)
-
-        exclude = list() if exclude is None else list(exclude)
-        p_env.add_exclude(exclude)
+    def _environment_install(self, env_id, pkg_types, exclude, strict=True, exclude_groups=None):
+        assert dnf.util.is_string_type(env_id)
+        comps_env = self.comps._environment_by_id(env_id)
+        swdb_env = self.history.env.new(env_id, comps_env.name, comps_env.ui_name, pkg_types)
+        self.history.env.install(swdb_env)
 
         trans = TransactionBunch()
-        for grp in env.mandatory_groups:
-            try:
-                trans += self._group_install(grp.id, pkg_types, exclude, strict)
-            except dnf.exceptions.CompsError:
-                pass
+        for comps_group in comps_env.mandatory_groups:
+            if exclude_groups and comps_group.id in exclude_groups:
+                continue
+            trans += self._group_install(comps_group.id, pkg_types, exclude, strict)
+            swdb_env.addGroup(comps_group.id, True, MANDATORY)
 
-        p_env.add_group([grp.id for grp in env.mandatory_groups])
+        for comps_group in comps_env.optional_groups:
+            if exclude_groups and comps_group.id in exclude_groups:
+                continue
+            swdb_env.addGroup(comps_group.id, False, OPTIONAL)
+            # TODO: if a group is already installed, mark it as installed?
         return trans
 
     def _environment_remove(self, env_id):
-        if isinstance(env_id, SwdbEnv):
-            env_id = env_id.name_id
-        p_env = self.persistor.environment(env_id)
-        if not p_env or not p_env.installed:
-            raise CompsError(_("Environment '%s' is not installed.") %
-                             ucd(p_env.ui_name))
+        assert dnf.util.is_string_type(env_id) is True
+        swdb_env = self.history.env.get(env_id)
+        if not swdb_env:
+            raise CompsError(_("Environment '%s' is not installed.") % env_id)
+
+        self.history.env.remove(swdb_env)
 
         trans = TransactionBunch()
-        group_ids = set(p_env.get_group_list())
-
-        for grp in group_ids:
-            if not self._removable_grp(grp):
+        group_ids = set([i.getGroupId() for i in swdb_env.getGroups()])
+        for group_id in group_ids:
+            if not self._removable_grp(group_id):
                 continue
-            trans += self._group_remove(grp)
+            trans += self._group_remove(group_id)
         return trans
 
     def _environment_upgrade(self, env_id):
-        if isinstance(env_id, SwdbEnv):
-            env_id = env_id.name_id
-        env = self.comps._environment_by_id(env_id)
-        p_env = self.persistor.environment(env.id)
-        if not p_env or not p_env.installed:
-            raise CompsError(_("Environment '%s' is not installed.") %
-                             env.ui_name)
+        assert dnf.util.is_string_type(env_id)
+        comps_env = self.comps._environment_by_id(env_id)
+        swdb_env = self.history.env.get(comps_env.id)
+        if not swdb_env:
+            raise CompsError(_("Environment '%s' is not installed.") % env_id)
 
-        old_set = set(p_env.get_group_list())
-        pkg_types = p_env.pkg_types
-        exclude = p_env.get_exclude()
+        old_set = set([i.getGroupId() for i in swdb_env.getGroups() if i.getInstalled()])
+        pkg_types = swdb_env.getPackageTypes()
+
+        # create a new record for current transaction
+        swdb_env = self.history.env.new(comps_env.id, comps_env.name, comps_env.ui_name, pkg_types)
 
         trans = TransactionBunch()
-        for grp in env.mandatory_groups:
-            if grp.id in old_set:
-                # upgrade
-                try:
-                    trans += self._group_upgrade(grp.id)
-                except dnf.exceptions.CompsError:
-                    # might no longer be installed
-                    pass
+        for comps_group in comps_env.mandatory_groups:
+            if comps_group.id in old_set:
+                # upgrade existing group
+                trans += self._group_upgrade(comps_group.id)
             else:
-                # install
-                trans += self._group_install(grp.id, pkg_types, exclude)
+                # install new group
+                trans += self._group_install(comps_group.id, pkg_types)
+            swdb_env.addGroup(comps_group.id, True, MANDATORY)
+
+        for comps_group in comps_env.optional_groups:
+            swdb_env.addGroup(comps_group.id, False, OPTIONAL)
+            # TODO: if a group is already installed, mark it as installed?
+        self.history.env.upgrade(swdb_env)
         return trans
 
-    def _group_install(self, group_id, pkg_types, exclude, strict=True):
-        if isinstance(group_id, SwdbGroup):
-            group_id = group_id.name_id
-        group = self.comps._group_by_id(group_id)
-        if not group:
-            raise ValueError(_("Group_id '%s' does not exist.") %
-                             ucd(group_id))
-        # this will return DnfSwdbGroup object
-        p_grp = self.persistor.group(group_id)
-        if p_grp and p_grp.installed:
-            logger.warning(_("Group '%s' is already installed.") %
-                           group.ui_name)
-        else:
-            p_grp = self.persistor.new_group(group_id, group.name,
-                                             group.ui_name, 0, pkg_types)
-            self.persistor.add_group(p_grp)
-            self.persistor.install_group(p_grp)
+    def _group_install(self, group_id, pkg_types, exclude=None, strict=True, exclude_groups=None):
+        assert dnf.util.is_string_type(group_id)
+        comps_group = self.comps._group_by_id(group_id)
+        if not comps_group:
+            raise ValueError(_("Group_id '%s' does not exist.") % ucd(group_id))
 
-        exclude = list() if exclude is None else list(exclude)
-        p_grp.add_exclude(exclude)
-        p_grp.add_package(list(self._full_package_set(group)))
+        swdb_group = self.history.group.new(group_id, comps_group.name, comps_group.ui_name, pkg_types)
+        for i in comps_group.packages_iter():
+            swdb_group.addPackage(i.name, False, i.type)
+        self.history.group.install(swdb_group)
 
         trans = TransactionBunch()
-        trans.install.update(self._pkgs_of_type(group, pkg_types, exclude))
+        # TODO: remove exclude
+        if strict:
+            trans.install.update(self._pkgs_of_type(comps_group, pkg_types, exclude=[]))
+        else:
+            trans.install_opt.update(self._pkgs_of_type(comps_group, pkg_types, exclude=[]))
         return trans
 
     def _group_remove(self, group_id):
-        if isinstance(group_id, SwdbGroup):
-            group_id = group_id.name_id
-        p_grp = self.persistor.group(group_id)
-        if not p_grp or not p_grp.installed:
-            raise CompsError(_("Group '%s' not installed.") %
-                             ucd(p_grp.ui_name))
+        assert dnf.util.is_string_type(group_id)
+        swdb_group = self.history.group.get(group_id)
+        self.history.group.remove(swdb_group)
 
         trans = TransactionBunch()
-        exclude = p_grp.get_exclude()
-        trans.remove = {pkg for pkg in p_grp.get_full_list()
-                        if pkg not in exclude and self._removable_pkg(pkg)}
-        self.persistor.remove_group(p_grp)
+        trans.remove = {pkg for pkg in swdb_group.getPackages() if self._removable_pkg(pkg.getName())}
         return trans
 
     def _group_upgrade(self, group_id):
-        if isinstance(group_id, SwdbGroup):
-            group_id = group_id.name_id
-        group = self.comps._group_by_id(group_id)
-        p_grp = self.persistor.group(group.id)
-        if not p_grp or not p_grp.installed:
+        assert dnf.util.is_string_type(group_id)
+        comps_group = self.comps._group_by_id(group_id)
+        swdb_group = self.history.group.get(group_id)
+        exclude = []
+
+        if not swdb_group:
             raise CompsError(_("Group '%s' not installed.") %
-                             group.ui_name)
-        exclude = set(p_grp.get_exclude())
-        old_set = set(p_grp.get_full_list())
-        new_set = self._pkgs_of_type(group, p_grp.pkg_types, exclude)
-        p_grp.update_full_list(list(self._full_package_set(group)))
+                             comps_group.ui_name)
+
+        pkg_types = swdb_group.getPackageTypes()
+        old_set = set([i.getName() for i in swdb_group.getPackages()])
+        new_set = self._pkgs_of_type(comps_group, pkg_types, exclude)
+
+        # create a new record for current transaction
+        swdb_group = self.history.group.new(group_id, comps_group.name, comps_group.ui_name, pkg_types)
+        for i in comps_group.packages_iter():
+            swdb_group.addPackage(i.name, False, i.type)
+        self.history.group.upgrade(swdb_group)
 
         trans = TransactionBunch()
         trans.install = {pkg for pkg in new_set if pkg.name not in old_set}

@@ -1,5 +1,5 @@
 ..
-  Copyright (C) 2014-2016 Red Hat, Inc.
+  Copyright (C) 2014-2018 Red Hat, Inc.
 
   This copyrighted material is made available to anyone wishing to use,
   modify, copy, or redistribute it subject to the terms and conditions of
@@ -138,6 +138,25 @@ Repository Configuration
   .. attribute:: proxy_password
 
     The password to use for connecting to the proxy server. Defaults to ``None``.
+
+  .. attribute:: proxy_auth_method
+
+    The authentication method used by the proxy server. Valid values are
+
+    ==========     ==========================================================
+    method         meaning
+    ==========     ==========================================================
+    basic          HTTP Basic authentication
+    digest         HTTP Digest authentication
+    negotiate      HTTP Negotiate (SPNEGO) authentication
+    ntlm           HTTP NTLM authentication
+    digest_ie      HTTP Digest authentication with an IE flavor
+    ntlm_wb        NTLM delegating to winbind helper
+    none           None auth method
+    any            All suitable methods
+    ==========     ==========================================================
+
+    Defaults to ``any``
 
   .. attribute:: repofile
 

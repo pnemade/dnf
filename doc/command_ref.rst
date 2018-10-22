@@ -1,5 +1,5 @@
 ..
-  Copyright (C) 2014-2016 Red Hat, Inc.
+  Copyright (C) 2014-2018 Red Hat, Inc.
 
   This copyrighted material is made available to anyone wishing to use,
   modify, copy, or redistribute it subject to the terms and conditions of
@@ -33,8 +33,8 @@ Description
 
 .. _command_provides-label:
 
-`DNF`_ is the next upcoming major version of `Yum`_, a package manager for RPM-based Linux
-distributions. It roughly maintains CLI compatibility with Yum and defines a strict API for
+`DNF`_ is the next upcoming major version of `YUM`_, a package manager for RPM-based Linux
+distributions. It roughly maintains CLI compatibility with YUM and defines a strict API for
 extensions and plugins.
 
 Plugins can modify or extend features of DNF or provide additional CLI commands on top of those
@@ -68,6 +68,7 @@ Available commands:
 * :ref:`list <list_command-label>`
 * :ref:`makecache <makecache_command-label>`
 * :ref:`mark <mark_command-label>`
+* :ref:`module <module_command-label>`
 * :ref:`provides <provides_command-label>`
 * :ref:`reinstall <reinstall_command-label>`
 * :ref:`remove <remove_command-label>`
@@ -169,8 +170,9 @@ Options
 
 ``--downloaddir=<path>``
     Redirect downloaded packages to provided directory. The option has to by used together with \-\
-    :ref:`-downloadonly <downloadonly-label>` command line option or with ``download`` command
-    (dnf-plugins-core).
+    :ref:`-downloadonly <downloadonly-label>` command line option or with
+    ``download`` command (dnf-plugins-core) or with ``system-upgrade`` command
+    (dnf-plugins-extras).
 
 .. _downloadonly-label:
 
@@ -179,7 +181,7 @@ Options
 
 ``-e <error level>, --errorlevel=<error level>``
     Error output level. This is an integer value between 0 (no error output) and
-    10 (shows all error messages), default is 2. Deprecated, use ``-v`` instead.
+    10 (shows all error messages), default is 3. Deprecated, use ``-v`` instead.
 
 ``--enableplugin=<plugin names>``
     Enable the listed plugins specified by names or globs.
@@ -191,13 +193,20 @@ Options
     Include enhancement relevant packages. Applicable for install, repoquery, updateinfo, and
     upgrade command.
 
+.. _exclude_option-label:
+
 ``-x <package-spec>, --exclude=<package-spec>``
     Exclude packages specified by ``<package-spec>`` from the operation.
+
+``--excludepkgs=<package-spec>``
+    Deprecated option. It was replaced by \-\ :ref:`-exclude <exclude_option-label>` option.
 
 ``--forcearch=<arch>``
     Force the use of an architecture. Any architecture can be specified.
     However, use of an architecture not supported natively by your CPU will
-    require emulation of some kind. This is usually through QEMU.
+    require emulation of some kind. This is usually through QEMU. The behavior of ``--forcearch``
+    could be emulate using configuration option :ref:`arch <arch-label>` with ``<arch>`` and
+    :ref:`ignorearch <ignorearch-label>` with ``True``.
 
 ``-h, --help``
     Show the help.
@@ -513,7 +522,7 @@ Groups are virtual collections of packages. DNF keeps track of groups that the u
     Mark the group removed and remove those packages in the group from the system which are neither comprising another installed group and were not installed explicitly by the user.
 
 ``dnf [options] group upgrade <group-spec>...``
-    Upgrades the packages from the group and upgrades the group itself. The latter comprises of installing pacakges that were added to the group by the distribution and removing packages that got removed from the group as far as they were not installed explicitly by the user.
+    Upgrades the packages from the group and upgrades the group itself. The latter comprises of installing packages that were added to the group by the distribution and removing packages that got removed from the group as far as they were not installed explicitly by the user.
 
 Groups can also be marked installed or removed without physically manipulating any packages:
 
@@ -627,6 +636,9 @@ Install Command
 
     See also :ref:`\configuration_files_replacement_policy-label`.
 
+``dnf [options] install @<spec>...``
+    Alias for `dnf module install` command.
+
 .. _install_examples-label:
 
 Install Examples
@@ -667,6 +679,9 @@ Install Examples
     Install package tito (tito is package name) without weak deps. Weak deps are not required for
     core functionality of the package, but they enhance the original package (like extended
     documentation, plugins, additional functions, ...).
+
+``dnf install --advisory=FEDORA-2018-b7b99fe852 \*``
+    Install all packages that belong to "FEDORA-2018-b7b99fe852" advisory.
 
 .. _list_command-label:
 
@@ -750,6 +765,68 @@ Mark Command
     installed as a dependency or a user and is desired to be protected and handled as a group
     member like during group remove.
 
+.. _module_command-label:
+
+---------------
+Module Command
+---------------
+
+Module subcommands take module_spec in form NAME:STREAM:VERSION:CONTEXT:ARCH/PROFILE from which only name is mandatory.
+In case stream is not specified enabled or default stream is used, in this order.
+
+.. _module_install_command-label:
+
+``dnf [options] module install <module_spec>...``
+    Install module profiles incl. their RPMs.
+    In case no profile was provided, all default profiles get installed.
+    Module streams get enabled accordingly.
+
+``dnf [options] module update <module_spec>...``
+    Update RPMs in installed module profiles.
+    In case no profile was provided, all installed profiles get updated.
+
+``dnf [options] module remove <module_spec>...``
+    Remove installed module profiles incl. their RPMs.
+    In case no profile was provided, all installed profiles get removed.
+
+``dnf [options] module enable <module_spec>...``
+    Enable a module stream and make the stream RPMs available in the package set.
+
+    Modular dependencies are resolved and checked at the enablement time,
+    but do not get enabled automatically, but lazily any time an RPM
+    is installed from them.
+
+    This command can also be used for switching module streams.
+    RPMs from the original stream become unavailable and RPMs from the new
+    stream become available in the package set.
+    The operation does not alter installed packages and their configuration.
+    It is suggested to use the ``dnf distro-sync`` command
+    to synchronize to the latest available RPMs from the new stream.
+
+``dnf [options] module disable <module_spec>...``
+    Disable a module. All related module streams will become unavailable.
+
+``dnf [options] module reset <module_spec>...``
+    Reset module state so it's no longer enabled or disabled.
+
+``dnf [options] module list [--all] [module_name...]``
+    Lists all module streams, their profiles and states (enabled, disabled, default)
+
+``dnf [options] module list --enabled [module_name...]``
+    Lists module streams that are enabled.
+
+``dnf [options] module list --disabled [module_name...]``
+    Lists module streams that are disabled.
+
+``dnf [options] module list --installed [module_name...]``
+    List module streams with installed profiles.
+
+``dnf [options] module info <module_spec>...``
+    Print detailed information about given module stream.
+
+``dnf [options] module profile <module_spec>...``
+    Print detailed information about given module profiles.
+
 .. _provides_command-label:
 
 ----------------
@@ -801,6 +878,10 @@ Remove Examples
 ``dnf remove $(dnf repoquery --extras --exclude=tito,acpi)``
     Remove packages not present in any repository, but it doesn't remove packages ``tito``
     and ``acpi`` (they still might be removed if they require some of the removed packages).
+
+Remove older versions of duplicated packages (an equivalent of yum's `package-cleanup --cleandups`)::
+
+    dnf remove --duplicates
 
 .. _repoinfo_command-label:
 
@@ -905,7 +986,7 @@ resulting packages matching the specification. All packages are considered if no
     Limit the resulting set to packages that provide an upgrade for some already installed package.
 
 ``--userinstalled``
-    Limit the resulting set to packages instaled by user. The :ref:`exclude <exclude-label>` option
+    Limit the resulting set to packages installed by user. The :ref:`exclude <exclude-label>` option
     in configuration file (.conf) might influence the result, but if the command line option  \-\
     :ref:`-disableexcludes <disableexcludes-label>` is used, it ensures that all installed packages will be listed.
 
@@ -966,6 +1047,9 @@ are displayed in the standard NEVRA notation.
 
 ``-s, --source``
     Show package source RPM name.
+
+``--changelogs``
+    Print package changelogs.
 
 ``--conflicts``
     Display capabilities that the package conflicts with. Same as ``--qf "%{conflicts}``.
@@ -1083,10 +1167,9 @@ Display duplicated packages::
 
     dnf repoquery --duplicates
 
-Remove older versions of duplicated packages (an equivalent of yum's `package-cleanup --cleandups`)::
+Display source packages that requires a <provide> for a build::
 
-    dnf remove --duplicates
-
+    dnf repoquery --disablerepo=* --enablerepo=*-source --arch=src --whatrequires <provide>
 
 .. _repository-packages_command-label:
 
@@ -1178,7 +1261,11 @@ Search Command
 --------------
 
 ``dnf [options] search [--all] <keywords>...``
-    Search package metadata for the keywords. Keywords are matched as case-insensitive substrings, globbing is supported. By default the command will only look at package names and summaries, failing that (or whenever ``all`` was given as an argument) it will match against package descriptions and URLs. The result is sorted from the most relevant results to the least.
+    Search package metadata for the keywords. Keywords are matched as case-insensitive substrings, globbing is supported.
+    By default lists packages that match all requested keys (AND operation). Keys are searched in package names and summaries.
+    If option "--all" is used, lists packages that match at least one of keys (OR operation).
+    And in addition keys are searched in package descriptions and URLs.
+    The result is sorted from the most relevant results to the least.
 
 This command by default does not force a sync of expired metadata. See also :ref:`\metadata_synchronization-label`.
 
@@ -1244,12 +1331,12 @@ Updateinfo Command
     information is even more detailed.
 
     ``<availability>`` specifies whether advisories about newer versions of
-    installed packages (omitted or ``available``), advisories about equal and
-    older versions of installed packages (``installed``), advisories about
+    installed packages (omitted or ``--available``), advisories about equal and
+    older versions of installed packages (``--installed``), advisories about
     newer versions of those installed packages for which a newer version is
-    available (``updates``) or advisories about any versions of installed
-    packages (``all``) are taken into account. Most of the time, ``available``
-    and ``updates`` displays the same output. The outputs differ only in the
+    available (``--updates``) or advisories about any versions of installed
+    packages (``--all``) are taken into account. Most of the time, ``--available``
+    and ``--updates`` displays the same output. The outputs differ only in the
     cases when an advisory refers to a newer version but there is no enabled
     repository which contains any newer version.
 
@@ -1277,6 +1364,9 @@ Upgrade Command
 
 ``dnf [options] upgrade <package-nevr-specs>...``
     Upgrades packages to the specified versions.
+
+``dnf [options] upgrade @<spec>...``
+    Alias for `dnf module update` command.
 
 If the main ``obsoletes`` configure option is true or the ``--obsoletes`` flag
 is present dnf will include package obsoletes in its calculations.
@@ -1444,6 +1534,6 @@ See Also
 * :manpage:`dnf.plugin.*(8)`, assorted DNF plugins that might be installed on the system.
 * `DNF`_ project homepage (https://github.com/rpm-software-management/dnf/)
 * How to report a bug (https://github.com/rpm-software-management/dnf/wiki/Bug-Reporting)
-* `Yum`_ project homepage (http://yum.baseurl.org/)
+* `YUM`_ project homepage (http://yum.baseurl.org/)
 
 .. _dnf config-manager: https://dnf-plugins-core.readthedocs.org/en/latest/config_manager.html

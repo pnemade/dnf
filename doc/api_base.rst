@@ -1,5 +1,5 @@
 ..
-  Copyright (C) 2014-2016 Red Hat, Inc.
+  Copyright (C) 2014-2018 Red Hat, Inc.
 
   This copyrighted material is made available to anyone wishing to use,
   modify, copy, or redistribute it subject to the terms and conditions of
@@ -49,9 +49,13 @@
 
     Init an instance with a reasonable default configuration. The constructor takes no arguments.
 
-  .. method:: add_remote_rpms(path_list, strict=True)
+  .. method:: add_remote_rpms(path_list, strict=True, progress=None)
 
-    Add RPM files at list `path_list` to the :attr:`sack` and return the list of respective :class:`dnf.package.Package` instances. Does the download to a temporary files for each path if `path` is a remote URL. Raises :exc:`IOError` if there are problems obtaining during reading files and `strict=True`.
+    Add RPM files at list `path_list` to the :attr:`sack` and return the list of respective
+    :class:`dnf.package.Package` instances. Does the download to a temporary files for each path if
+    `path` is a remote URL. Raises :exc:`IOError` if there are problems obtaining during reading
+    files and `strict=True`. `progress`, if given, should be a :class:`.DownloadProgress` and can be
+    used by the caller to monitor the progress of the download.
 
   .. method:: close()
 

@@ -1,5 +1,5 @@
 ..
-  Copyright (C) 2014-2016 Red Hat, Inc.
+  Copyright (C) 2014-2018 Red Hat, Inc.
 
   This copyrighted material is made available to anyone wishing to use,
   modify, copy, or redistribute it subject to the terms and conditions of
@@ -146,6 +146,25 @@ Configurable settings of the :class:`dnf.Base` object are stored into a :class:`
 
     The password to use for connecting to the proxy server. Defaults to ``None``.
 
+  .. attribute:: proxy_auth_method
+
+    The authentication method used by the proxy server. Valid values are
+
+    ==========     ==========================================================
+    method         meaning
+    ==========     ==========================================================
+    basic          HTTP Basic authentication
+    digest         HTTP Digest authentication
+    negotiate      HTTP Negotiate (SPNEGO) authentication
+    ntlm           HTTP NTLM authentication
+    digest_ie      HTTP Digest authentication with an IE flavor
+    ntlm_wb        NTLM delegating to winbind helper
+    none           None auth method
+    any            All suitable methods
+    ==========     ==========================================================
+
+    Defaults to ``any``
+
   .. attribute:: releasever
 
     Used for substitution of ``$releasever`` in the repository configuration.
@@ -216,13 +235,16 @@ Configurable settings of the :class:`dnf.Base` object are stored into a :class:`
     nodocs                  RPMTRANS_FLAG_NODOCS
     justdb                  RPMTRANS_FLAG_JUSTDB
     nocontexts              RPMTRANS_FLAG_NOCONTEXTS
+    nocaps                  RPMTRANS_FLAG_NOCAPS
     nocrypto                RPMTRANS_FLAG_NOFILEDIGEST
     ==========              ===========================
 
-    The ``"nocrypto"`` option will also set the ``_RPMVSF_NOSIGNATURES`` and ``_RPMVSF_NODIGESTS`` VS flags.
-    The ``test`` option provides a transaction check without performing the transaction. It includes
-    download of packages, gpg keys check (including permanent import of additional keys if
-    necessary), and rpm check to prevent file conflicts.
+    The ``nocrypto`` option will also set the ``_RPMVSF_NOSIGNATURES`` and ``_RPMVSF_NODIGESTS`` VS
+    flags.     The ``test`` option provides a transaction check without performing the transaction.
+    It includes download of packages, gpg keys check (including permanent import of additional keys
+    if necessary), and rpm check to prevent file conflicts.
+    The ``nocaps`` is supported with rpm-4.14 or later. When ``nocaps`` is used but rpm doesn't
+    support it, DNF only reports it as an invalid tsflag.
 
   .. attribute:: username
 

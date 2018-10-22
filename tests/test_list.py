@@ -22,6 +22,8 @@ from __future__ import unicode_literals
 
 import itertools
 
+import libdnf.transaction
+
 import tests.support
 
 
@@ -48,8 +50,11 @@ class List(tests.support.DnfBaseTestCase):
     def test_list_installed_reponame(self):
         """Test whether only packages installed from the repository are listed."""
         expected = self.base.sack.query().installed().filter(name={'pepper', 'librita'})
+        tsis = []
         for pkg in expected:
-            tests.support.mockSwdbPkg(self.history, pkg, repo='main')
+            pkg._force_swdb_repoid = "main"
+            self.history.rpm.add_install(pkg)
+        self._swdb_commit(tsis)
 
         lists = self.base._do_package_lists('installed', reponame='main')
 

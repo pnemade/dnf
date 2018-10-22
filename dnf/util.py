@@ -26,10 +26,11 @@ from .pycomp import PY3, basestring
 from dnf.i18n import _, ucd
 from functools import reduce
 import dnf
+import dnf.callback
 import dnf.const
 import dnf.pycomp
+import errno
 import itertools
-import librepo
 import locale
 import logging
 import os
@@ -39,10 +40,39 @@ import subprocess
 import sys
 import tempfile
 import time
+import libdnf.repo
 
 logger = logging.getLogger('dnf')
 
 """DNF Utilities."""
+
+
+def _parse_specs(namespace, values):
+    """
+    Categorize :param values list into packages, groups and filenames
+
+    :param namespace: argparse.Namespace, where specs will be stored
+    :param values: list of specs, whether packages ('foo') or groups/modules ('@bar')
+                   or filenames ('*.rmp', 'http://*', ...)
+
+    To access packages use: specs.pkg_specs,
+    to access groups use: specs.grp_specs,
+    to access filenames use: specs.filenames
+    """
+
+    setattr(namespace, "filenames", [])
+    setattr(namespace, "grp_specs", [])
+    setattr(namespace, "pkg_specs", [])
+    for value in values:
+        schemes = dnf.pycomp.urlparse.urlparse(value)[0]
+        if value.endswith('.rpm'):
+            namespace.filenames.append(value)
+        elif schemes and schemes in ('http', 'ftp', 'file', 'https'):
+            namespace.filenames.append(value)
+        elif value.startswith('@'):
+            namespace.grp_specs.append(value[1:])
+        else:
+            namespace.pkg_specs.append(value)
 
 
 def _non_repo_handle(conf=None):
@@ -54,28 +84,32 @@ def _non_repo_handle(conf=None):
             else int(conf.bandwidth * conf.throttle)
         handle.proxy = conf.proxy
         handle.proxyuserpwd = dnf.repo._user_pass_str(conf.proxy_username,
-                                                      conf.proxy_password)
+                                                      conf.proxy_password, True)
         handle.sslverifypeer = handle.sslverifyhost = conf.sslverify
     return handle
 
 
-def _urlopen_progress(url, conf):
-    handle = _non_repo_handle(conf)
-    handle.repotype = librepo.LR_YUMREPO
-    handle.setopt(librepo.LRO_URLS, os.path.dirname(url))
-    progress = dnf.cli.progress.MultiFileProgressMeter(fo=sys.stdout)
-    pload = dnf.repo.RemoteRPMPayload(url, conf, handle, progress)
+def _urlopen_progress(url, conf, progress=None):
+    if progress is None:
+        progress = dnf.callback.NullDownloadProgress()
+    pload = dnf.repo.RemoteRPMPayload(url, conf, progress)
     if os.path.exists(pload.local_path):
         return pload.local_path
     est_remote_size = sum([pload.download_size])
     progress.start(1, est_remote_size)
     targets = [pload._librepo_target()]
     try:
-        librepo.download_packages(targets, failfast=True)
-    except librepo.LibrepoException as e:
+        libdnf.repo.PackageTarget.downloadPackages(libdnf.repo.VectorPPackageTarget(targets), True)
+    except RuntimeError as e:
         if conf.strict:
-            raise IOError(e.args[1])
-        logger.error(e.args[1])
+            raise IOError(str(e))
+        logger.error(str(e))
+#    try:
+#        librepo.download_packages(targets, failfast=True)
+#    except librepo.LibrepoException as e:
+#        if conf.strict:
+#            raise IOError(e.args[1])
+#        logger.error(e.args[1])
     return pload.local_path
 
 def _urlopen(url, conf=None, repo=None, mode='w+b', **kwargs):
@@ -86,14 +120,17 @@ def _urlopen(url, conf=None, repo=None, mode='w+b', **kwargs):
     if PY3 and 'b' not in mode:
         kwargs.setdefault('encoding', 'utf-8')
     fo = tempfile.NamedTemporaryFile(mode, **kwargs)
-    if repo:
-        handle = repo._get_handle()
-    else:
-        handle = _non_repo_handle(conf)
+
     try:
-        librepo.download_url(url, fo.fileno(), handle)
-    except librepo.LibrepoException as e:
-        raise IOError(e.args[1])
+        if repo:
+            repo._repo.downloadUrl(url, fo.fileno())
+        else:
+            libdnf.repo.Downloader.downloadURL(conf._config if conf else None, url, fo.fileno())
+    except RuntimeError as e:
+        raise IOError(str(e))
+#    except librepo.LibrepoException as e:
+#        raise IOError(e.args[1])
+
     fo.seek(0)
     return fo
 
@@ -120,7 +157,7 @@ def ensure_dir(dname):
     try:
         os.makedirs(dname, mode=0o755)
     except OSError as e:
-        if e.errno != os.errno.EEXIST or not os.path.isdir(dname):
+        if e.errno != errno.EEXIST or not os.path.isdir(dname):
             raise e
 
 def empty(iterable):
@@ -137,6 +174,15 @@ def first(iterable):
         return next(it)
     except StopIteration:
         return None
+
+
+def first_not_none(iterable):
+    it = iter(iterable)
+    try:
+        return next(item for item in it if item is not None)
+    except StopIteration:
+        return None
+
 
 def file_age(fn):
     return time.time() - file_timestamp(fn)
@@ -207,14 +253,6 @@ def lazyattr(attrname):
         return cached_getter
     return get_decorated
 
-def log_method_call(log_call):
-    def wrapper(fn):
-        def new_func(*args, **kwargs):
-            name = '%s.%s' % (args[0].__class__.__name__, fn.__name__)
-            log_call('Call: %s: %s, %s', name, args[1:], kwargs)
-            return fn(*args, **kwargs)
-        return new_func
-    return wrapper
 
 def mapall(fn, *seq):
     """Like functools.map(), but return a list instead of an iterator.

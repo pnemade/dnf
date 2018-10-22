@@ -238,9 +238,13 @@ man_pages = [
      AUTHORS, 8),
     ('conf_ref', 'dnf.conf', u'DNF Configuration Reference',
      AUTHORS, 5),
-    ('cli_vs_yum', 'yum2dnf', u'Changes in DNF compared to Yum',
+    ('conf_ref', 'yum.conf', u'redirecting to DNF Configuration Reference',
+     AUTHORS, 5),
+    ('cli_vs_yum', 'yum2dnf', u'Changes in DNF compared to YUM',
      AUTHORS, 8),
-    ('yum-dnf', 'yum', u'/usr/bin/yum to /usr/bin/dnf redirecting executable',
+    ('command_ref', 'yum', u'redirecting to DNF Command Reference',
+     AUTHORS, 8),
+    ('command_ref', 'yum-shell', u'redirecting to DNF Command Reference',
      AUTHORS, 8),
 ]
 
@@ -272,6 +276,6 @@ rst_prolog = """
 .. default-domain:: py
 .. _DNF: https://github.com/rpm-software-management/dnf/
 .. _hawkey: http://rpm-software-management.github.io/hawkey/
-.. _Yum: http://yum.baseurl.org/
+.. _YUM: http://yum.baseurl.org/
 .. _bugzilla: https://bugzilla.redhat.com/enter_bug.cgi?product=Fedora&component=dnf
 """

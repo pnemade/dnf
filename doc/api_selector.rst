@@ -1,5 +1,5 @@
 ..
-  Copyright (C) 2014  Red Hat, Inc.
+  Copyright (C) 2014-2018 Red Hat, Inc.
 
   This copyrighted material is made available to anyone wishing to use,
   modify, copy, or redistribute it subject to the terms and conditions of
@@ -22,3 +22,11 @@
 .. class:: dnf.selector.Selector
 
   Specify a target of a transaction operation.
+
+  .. method:: set
+
+    Set content of Selector similarly like :meth:`dnf.query.Query.filter`
+
+  .. method:: matches
+
+    Returns packages that represents the content of Selector

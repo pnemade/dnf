@@ -28,7 +28,10 @@ from . import output
 from dnf.cli import CliError
 from dnf.i18n import ucd, _
 
-import collections
+try:
+    from collections.abc import Sequence
+except ImportError:
+    from collections import Sequence
 import dnf
 import dnf.cli.commands
 import dnf.cli.commands.autoremove
@@ -42,6 +45,7 @@ import dnf.cli.commands.group
 import dnf.cli.commands.install
 import dnf.cli.commands.makecache
 import dnf.cli.commands.mark
+import dnf.cli.commands.module
 import dnf.cli.commands.reinstall
 import dnf.cli.commands.repolist
 import dnf.cli.commands.repoquery
@@ -54,7 +58,6 @@ import dnf.cli.commands.upgrademinimal
 import dnf.cli.demand
 import dnf.cli.option_parser
 import dnf.conf
-import dnf.conf.parser
 import dnf.conf.substitutions
 import dnf.const
 import dnf.exceptions
@@ -64,6 +67,7 @@ import dnf.plugin
 import dnf.persistor
 import dnf.rpm
 import dnf.sack
+import dnf.transaction
 import dnf.util
 import dnf.yum.misc
 import hawkey
@@ -73,6 +77,10 @@ import os
 import random
 import sys
 import time
+
+import libdnf.transaction
+import dnf.db.history
+import dnf.util
 
 logger = logging.getLogger('dnf')
 
@@ -143,23 +151,23 @@ class BaseCli(dnf.Base):
         confirmation and actually running the transaction.
 
         :param display: `rpm.callback.TransactionProgress` object(s)
-        :return: a numeric return code, and optionally a list of
-           errors.  A negative return code indicates that errors
-           occurred in the pre-transaction checks
+        :return: history database transaction ID or None
         """
 
         # Reports about excludes and includes (but not from plugins)
         if self.conf.excludepkgs:
-            logger.debug('Excludes in dnf.conf: ' + ", ".join(sorted(set(self.conf.excludepkgs))))
+            logger.debug(_('Excludes in dnf.conf: ') +
+                         ", ".join(sorted(set(self.conf.excludepkgs))))
         if self.conf.includepkgs:
-            logger.debug('Includes in dnf.conf: ' + ", ".join(sorted(set(self.conf.includepkgs))))
+            logger.debug(_('Includes in dnf.conf: ') +
+                         ", ".join(sorted(set(self.conf.includepkgs))))
         for repo in self.repos.iter_enabled():
             if repo.excludepkgs:
-                logger.debug(
-                    'Excludes in repo ' + repo.id + ": " + ", ".join(sorted(set(repo.excludepkgs))))
+                logger.debug(_('Excludes in repo ') + repo.id + ": " +
+                             ", ".join(sorted(set(repo.excludepkgs))))
             if repo.includepkgs:
-                logger.debug(
-                    'Includes in repo ' + repo.id + ": " + ", ".join(sorted(set(repo.includepkgs))))
+                logger.debug(_('Includes in repo ') + repo.id + ": " +
+                             ", ".join(sorted(set(repo.includepkgs))))
 
         trans = self.transaction
         pkg_str = self.output.list_transaction(trans)
@@ -172,13 +180,11 @@ class BaseCli(dnf.Base):
             rmpkgs = []
             install_only = True
             for tsi in trans:
-                installed = tsi.installed
-                if installed is not None:
-                    install_pkgs.append(installed)
-                erased = tsi.erased
-                if erased is not None:
+                if tsi.action in dnf.transaction.FORWARD_ACTIONS:
+                    install_pkgs.append(tsi.pkg)
+                elif tsi.action in dnf.transaction.BACKWARD_ACTIONS:
                     install_only = False
-                    rmpkgs.append(erased)
+                    rmpkgs.append(tsi.pkg)
 
             # Close the connection to the rpmdb so that rpm doesn't hold the
             # SIGINT handler during the downloads.
@@ -190,7 +196,7 @@ class BaseCli(dnf.Base):
             else:
                 self.output.reportDownloadSize(install_pkgs, install_only)
 
-        if trans:
+        if trans or self._moduleContainer.isChanged():
             # confirm with user
             if self.conf.downloadonly:
                 logger.info(_("DNF will only download packages for the transaction."))
@@ -223,16 +229,26 @@ class BaseCli(dnf.Base):
         if self.conf.downloadonly:
             return
 
-        if not isinstance(display, collections.Sequence):
+        if not isinstance(display, Sequence):
             display = [display]
         display = [output.CliTransactionDisplay()] + list(display)
-        super(BaseCli, self).do_transaction(display)
+        tid = super(BaseCli, self).do_transaction(display)
+
+        # display last transaction (which was closed during do_transaction())
+        if tid is not None:
+            trans = self.history.old([tid])[0]
+            trans = dnf.db.group.RPMTransaction(self.history, trans._trans)
+        else:
+            trans = None
+
         if trans:
             msg = self.output.post_transaction_output(trans)
             logger.info(msg)
             for tsi in trans:
-                if tsi.op_type == dnf.transaction.FAIL:
+                if tsi.state == libdnf.transaction.TransactionItemState_ERROR:
                     raise dnf.exceptions.Error(_('Transaction failed'))
+
+        return tid
 
     def gpgsigcheck(self, pkgs):
         """Perform GPG signature verification on the given packages,
@@ -358,7 +374,6 @@ class BaseCli(dnf.Base):
             except dnf.exceptions.PackageNotFoundError as err:
                 msg = _('No package %s available.')
                 logger.info(msg, self.output.term.bold(arg))
-                self._report_icase_hint(arg)
             except dnf.exceptions.PackagesNotInstalledError as err:
                 logger.info(_('Packages for argument %s available, but not installed.'),
                             self.output.term.bold(err.pkg_spec))
@@ -581,7 +596,7 @@ class BaseCli(dnf.Base):
                 logger.warning(_('Transaction history is incomplete, after %u.'), trans.tid)
 
             if mobj is None:
-                mobj = trans
+                mobj = dnf.db.history.MergedTransactionWrapper(trans)
             else:
                 mobj.merge(trans)
 
@@ -591,22 +606,29 @@ class BaseCli(dnf.Base):
                                         ", ".join((str(x) for x in mobj.tids()))))
         self.output.historyInfoCmdPkgsAltered(mobj)  # :todo
 
-        history = dnf.history.open_history(self.history)  # :todo
-        operations = dnf.history.NEVRAOperations()
-        for id_ in range(old.tid + 1, last.tid + 1):
-            operations += history.transaction_nevra_ops(id_)
+#        history = dnf.history.open_history(self.history)  # :todo
+#        m = libdnf.transaction.MergedTransaction()
+
+#        return
+
+#        operations = dnf.history.NEVRAOperations()
+#        for id_ in range(old.tid + 1, last.tid + 1):
+#            operations += history.transaction_nevra_ops(id_)
 
         try:
-            self._history_undo_operations(operations, old.tid + 1, True)
+            self._history_undo_operations(mobj, old.tid + 1, True, strict=self.conf.strict)
         except dnf.exceptions.PackagesNotInstalledError as err:
+            raise
             logger.info(_('No package %s installed.'),
                         self.output.term.bold(ucd(err.pkg_spec)))
             return 1, ['A transaction cannot be undone']
         except dnf.exceptions.PackagesNotAvailableError as err:
+            raise
             logger.info(_('No package %s available.'),
                         self.output.term.bold(ucd(err.pkg_spec)))
             return 1, ['A transaction cannot be undone']
         except dnf.exceptions.MarkingError:
+            raise
             assert False
         else:
             return 2, ["Rollback to transaction %u" % (old.tid,)]
@@ -622,12 +644,11 @@ class BaseCli(dnf.Base):
         logger.info(msg)
         self.output.historyInfoCmdPkgsAltered(old)  # :todo
 
-        history = dnf.history.open_history(self.history)  # :todo
+
+        mobj = dnf.db.history.MergedTransactionWrapper(old)
 
         try:
-            self._history_undo_operations(
-                history.transaction_nevra_ops(old.tid),
-                old.tid)
+            self._history_undo_operations(mobj, old.tid, strict=self.conf.strict)
         except dnf.exceptions.PackagesNotInstalledError as err:
             logger.info(_('No package %s installed.'),
                         self.output.term.bold(ucd(err.pkg_spec)))
@@ -637,7 +658,7 @@ class BaseCli(dnf.Base):
                         self.output.term.bold(ucd(err.pkg_spec)))
             return 1, ['An operation cannot be undone']
         except dnf.exceptions.MarkingError:
-            assert False
+            raise
         else:
             return 2, ["Undoing transaction %u" % (old.tid,)]
 
@@ -658,6 +679,7 @@ class Cli(object):
         self.register_command(dnf.cli.commands.install.InstallCommand)
         self.register_command(dnf.cli.commands.makecache.MakeCacheCommand)
         self.register_command(dnf.cli.commands.mark.MarkCommand)
+        self.register_command(dnf.cli.commands.module.ModuleCommand)
         self.register_command(dnf.cli.commands.reinstall.ReinstallCommand)
         self.register_command(dnf.cli.commands.remove.RemoveCommand)
         self.register_command(dnf.cli.commands.repolist.RepoListCommand)
@@ -715,7 +737,7 @@ class Cli(object):
         for rid in self.base._repo_persistor.get_expired_repos():
             repo = self.base.repos.get(rid)
             if repo:
-                repo._md_expire_cache()
+                repo._repo.expire()
 
         # setup the progress bars/callbacks
         (bar, self.base._ds_callback) = self.base.output.setup_progress_callbacks()
@@ -741,20 +763,26 @@ class Cli(object):
             if not dnf.util.am_i_root():
                 raise dnf.exceptions.Error(_('This command has to be run under the root user.'))
 
+        if demands.changelogs:
+            for repo in repos.iter_enabled():
+                repo.load_metadata_other = True
+
         if demands.cacheonly or self.base.conf.cacheonly:
             self.base.conf.cacheonly = True
-            repos.all()._md_only_cached = True
+            for repo in repos.values():
+                repo._repo.setSyncStrategy(dnf.repo.SYNC_ONLY_CACHE)
         else:
             if demands.freshest_metadata:
                 for repo in repos.iter_enabled():
-                    repo._md_expire_cache()
+                    repo._repo.expire()
             elif not demands.fresh_metadata:
                 for repo in repos.values():
-                    repo._md_lazy = True
+                    repo._repo.setSyncStrategy(dnf.repo.SYNC_LAZY)
 
         if demands.sack_activation:
-            self.base.fill_sack(load_system_repo='auto',
-                                load_available_repos=self.demands.available_repos)
+            self.base.fill_sack(
+                load_system_repo='auto' if self.demands.load_system_repo else False,
+                load_available_repos=self.demands.available_repos)
 
     def _parse_commands(self, opts, args):
         """Check that the requested CLI command exists."""
@@ -796,7 +824,7 @@ class Cli(object):
 
         if opts.quiet:
             opts.debuglevel = 0
-            opts.errorlevel = 0
+            opts.errorlevel = 2
         if opts.verbose:
             opts.debuglevel = opts.errorlevel = dnf.const.VERBOSE_LEVEL
 
@@ -814,14 +842,15 @@ class Cli(object):
             logger.critical(_('Config error: %s'), e)
             sys.exit(1)
         except IOError as e:
-            e = '%s: %s' % (ucd(e.args[1]), repr(e.filename))
+            e = '%s: %s' % (ucd(str(e)), repr(e.filename))
             logger.critical(_('Config error: %s'), e)
             sys.exit(1)
         if opts.destdir is not None:
             self.base.conf.destdir = opts.destdir
-            if not self.base.conf.downloadonly and opts.command != 'download':
-                logger.critical(
-                    _('--destdir must be used with --downloadonly or download command.')
+            if not self.base.conf.downloadonly and opts.command not in (
+                    'download', 'system-upgrade', 'reposync'):
+                logger.critical(_('--destdir or --downloaddir must be used with --downloadonly '
+                                  'or download or system-upgrade command.')
                 )
                 sys.exit(1)
 
@@ -974,6 +1003,11 @@ class Cli(object):
             self.base._logging.stdout_handler.setLevel(stdout)
         if stderr is not None:
             self.base._logging.stderr_handler.setLevel(stderr)
+
+    def redirect_repo_progress(self, fo=sys.stderr):
+        progress = dnf.cli.progress.MultiFileProgressMeter(fo)
+        self.base.output.progress = progress
+        self.base.repos.all().set_progress_bar(progress)
 
     def _check_running_kernel(self):
         kernel = self.base.sack.get_running_kernel()

@@ -26,7 +26,6 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
 from dnf.i18n import _
-import collections
 import distutils.version
 import dnf.util
 import errno
@@ -96,14 +95,14 @@ class RepoPersistor(JSONDB):
                 dnf.util.touch(self._last_makecache_path)
                 return True
             except IOError:
-                logger.info("Failed storing last makecache time.")
+                logger.info(_("Failed storing last makecache time."))
                 return False
 
     def since_last_makecache(self):
         try:
             return int(dnf.util.file_age(self._last_makecache_path))
         except OSError:
-            logger.info("Failed determining last makecache time.")
+            logger.info(_("Failed determining last makecache time."))
             return None
 
 

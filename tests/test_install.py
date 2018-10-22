@@ -144,6 +144,8 @@ class CommonTest(tests.support.ResultTestCase):
         self.base.resolve()
         self.assertEmpty(self.base._goal.list_reinstalls())
 
+        self.base.history.close()
+
         self.base.package_reinstall(p)
         self.base.resolve()
         self.assertLength(self.base._goal.list_reinstalls(), 1)
@@ -169,7 +171,7 @@ class CommonTest(tests.support.ResultTestCase):
 
     def test_pkg_install_installonly(self):
         """Test that installonly packages are installed, not upgraded."""
-        self.base.conf.installonlypkgs.append('hole')
+        self.base.conf.installonlypkgs += ['hole']
         p = self.base.sack.query().available().filter(
             nevra='hole-1-2.x86_64')[0]
         self.assertEqual(1, self.base.package_install(p))
@@ -233,16 +235,16 @@ class MultilibAllTest(tests.support.ResultTestCase):
     def test_install_installed(self):
         """Test that nothing changes if an installed package matches."""
         stdout = dnf.pycomp.StringIO()
-        with tests.support.wiretap_logs('dnf', logging.WARNING, stdout):
+        with tests.support.wiretap_logs('dnf', logging.INFO, stdout):
             self.base.install('librita')
         self.assertEqual(self.base._goal.req_length(), 0)
         self.assertIn(
-            'Package librita-1-1.x86_64 is already installed, skipping.',
+            'Package librita-1-1.x86_64 is already installed.',
             stdout.getvalue())
 
     def test_install_installonly(self):
         """Test that installonly packages are installed, not upgraded."""
-        self.base.conf.installonlypkgs.append('hole')
+        self.base.conf.installonlypkgs += ['hole']
         self.base.install('hole-1-2')
         installed, removed = self.installed_removed(self.base)
         self.assertGreaterEqual(
@@ -266,11 +268,11 @@ class MultilibAllTest(tests.support.ResultTestCase):
             dnf.subject.Subject('pepper.src').get_best_query(self.base.sack))
 
         stdout = dnf.pycomp.StringIO()
-        with tests.support.wiretap_logs('dnf', logging.WARNING, stdout):
+        with tests.support.wiretap_logs('dnf', logging.INFO, stdout):
             self.base.install('pepper')
         self.assertEqual(self.base._goal.req_length(), 0)
         self.assertIn(
-            'Package pepper-20-0.x86_64 is already installed, skipping.',
+            'Package pepper-20-0.x86_64 is already installed.',
             stdout.getvalue())
 
     def test_install_nonexistent(self):
@@ -371,18 +373,18 @@ class MultilibBestTest(tests.support.ResultTestCase):
     def test_install_installed(self):
         """Test that nothing changes if an installed package matches."""
         stdout = dnf.pycomp.StringIO()
-        with tests.support.wiretap_logs('dnf', logging.WARNING, stdout):
+        with tests.support.wiretap_logs('dnf', logging.INFO, stdout):
             self.base.install('librita')
         installed, removed = self.installed_removed(self.base)
         self.assertEmpty(installed)
         self.assertEmpty(removed)
         self.assertIn(
-            'Package librita-1-1.x86_64 is already installed, skipping.',
+            'Package librita-1-1.x86_64 is already installed.',
             stdout.getvalue())
 
     def test_install_installonly(self):
         """Test that installonly packages are installed, not upgraded."""
-        self.base.conf.installonlypkgs.append('hole')
+        self.base.conf.installonlypkgs += ['hole']
         self.base.install('hole-1-2')
         installed, removed = self.installed_removed(self.base)
         self.assertGreaterEqual(
@@ -406,12 +408,12 @@ class MultilibBestTest(tests.support.ResultTestCase):
             dnf.subject.Subject('pepper.src').get_best_query(self.base.sack))
 
         stdout = dnf.pycomp.StringIO()
-        with tests.support.wiretap_logs('dnf', logging.WARNING, stdout):
+        with tests.support.wiretap_logs('dnf', logging.INFO, stdout):
             self.base.install('pepper')
         installed, removed = self.installed_removed(self.base)
         self.assertEmpty(installed | removed)
         self.assertIn(
-            'Package pepper-20-0.x86_64 is already installed, skipping.',
+            'Package pepper-20-0.x86_64 is already installed.',
             stdout.getvalue())
 
     def test_install_nonexistent(self):
@@ -449,13 +451,13 @@ class MultilibBestTest(tests.support.ResultTestCase):
     def test_install_unavailable(self):
         """Test that nothing changes if an unavailable package matches."""
         stdout = dnf.pycomp.StringIO()
-        with tests.support.wiretap_logs('dnf', logging.WARNING, stdout):
+        with tests.support.wiretap_logs('dnf', logging.INFO, stdout):
             cnt = self.base.install('hole')
         self.assertEqual(cnt, 1)
         installed_pkgs = self.base.sack.query().installed().run()
         self.assertResult(self.base, installed_pkgs)
         self.assertIn(
-            'Package hole-1-1.x86_64 is already installed, skipping.',
+            'Package hole-1-1.x86_64 is already installed.',
             stdout.getvalue())
 
     def test_install_upgrade(self):

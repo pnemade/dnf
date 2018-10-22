@@ -31,6 +31,7 @@ PY3 = version_info.major >= 3
 
 if PY3:
     from io import StringIO
+    from configparser import ConfigParser
     import queue
     import urllib.parse
     import shlex
@@ -49,6 +50,7 @@ if PY3:
     urllib_quote = urlparse.quote
     shlex_quote = shlex.quote
 
+
     def gettext_setup(t):
         _ = t.gettext
         P_ = t.ngettext
@@ -62,7 +64,7 @@ if PY3:
 
     # functions that don't take unicode arguments in py2
     ModuleType = lambda m: types.ModuleType(m)
-    format = locale.format
+    format = locale.format_string
     def setlocale(category, loc=None):
         locale.setlocale(category, loc)
     def write_to_file(f, content):
@@ -73,6 +75,7 @@ else:
     # functions renamed in py3
     from __builtin__ import unicode, basestring, long, xrange, raw_input
     from StringIO import StringIO
+    from ConfigParser import ConfigParser
     import Queue
     import urllib
     import urlparse

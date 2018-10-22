@@ -1,7 +1,9 @@
+# -*- coding: utf-8 -*-
+
 # transaction.py
 # Managing the transaction to be passed to RPM.
 #
-# Copyright (C) 2013-2016 Red Hat, Inc.
+# Copyright (C) 2013-2018 Red Hat, Inc.
 #
 # This copyrighted material is made available to anyone wishing to use,
 # modify, copy, or redistribute it subject to the terms and conditions of
@@ -20,219 +22,102 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
-from hawkey import SwdbReason, convert_reason
-from dnf.i18n import _
-from functools import reduce
-import operator
 
-DOWNGRADE = 1
-ERASE     = 2
-INSTALL   = 3
-REINSTALL = 4
-UPGRADE   = 5
-FAIL      = 6
+import libdnf.transaction
+
+from dnf.i18n import _, C_
 
 
-class TransactionItem(object):
-    # :api
+# per-package actions - from libdnf
+PKG_DOWNGRADE = libdnf.transaction.TransactionItemAction_DOWNGRADE
+PKG_DOWNGRADED = libdnf.transaction.TransactionItemAction_DOWNGRADED
+PKG_INSTALL = libdnf.transaction.TransactionItemAction_INSTALL
+PKG_OBSOLETE = libdnf.transaction.TransactionItemAction_OBSOLETE
+PKG_OBSOLETED = libdnf.transaction.TransactionItemAction_OBSOLETED
+PKG_REINSTALL = libdnf.transaction.TransactionItemAction_REINSTALL
+PKG_REINSTALLED = libdnf.transaction.TransactionItemAction_REINSTALLED
+PKG_REMOVE = libdnf.transaction.TransactionItemAction_REMOVE
+PKG_UPGRADE = libdnf.transaction.TransactionItemAction_UPGRADE
+PKG_UPGRADED = libdnf.transaction.TransactionItemAction_UPGRADED
 
-    __slots__ = ('op_type', 'installed', 'erased', 'obsoleted', 'reason')
+# compatibility
+PKG_ERASE = PKG_REMOVE
 
-    def __init__(self, op_type, installed=None, erased=None, obsoleted=None,
-                 reason=SwdbReason.UNKNOWN):
-        self.op_type = op_type
-        self.installed = installed
-        self.erased = erased
-        self.obsoleted = list() if obsoleted is None else obsoleted
-        self.reason = convert_reason(reason)  # reason for it to be in the transaction set
+# per-package actions - additional
+PKG_CLEANUP = 101
+PKG_VERIFY = 102
+PKG_SCRIPTLET = 103
 
-    @property
-    def _active(self):
-        return self.installed if self.installed is not None else self.erased
-
-    @property
-    def _active_history_state(self):
-        return (self._installed_history_state if self.installed is not None
-                else self._erased_history_state)
-
-    @property
-    def _erased_history_state(self):
-        return self._HISTORY_ERASE_STATES[self.op_type]
-
-    _HISTORY_INSTALLED_STATES = {
-        DOWNGRADE : 'Downgrade',
-        INSTALL   : 'Install',
-        REINSTALL : 'Reinstall',
-        UPGRADE   : 'Update'
-        }
-
-    _HISTORY_ERASE_STATES = {
-        DOWNGRADE : 'Downgraded',
-        ERASE     : 'Erase',
-        REINSTALL : 'Reinstalled',
-        UPGRADE   : 'Updated'
-        }
-
-    _HISTORY_ERASE = [DOWNGRADE, ERASE, REINSTALL, UPGRADE]
-
-    def _history_iterator(self):
-        obsoleting = True if self.obsoleted else False
-        if self.installed is not None:
-            yield (self.installed, self._installed_history_state, obsoleting)
-        if self.erased is not None:
-            yield (self.erased, self._erased_history_state, False)
-        for obs in self.obsoleted:
-            yield (obs, self._obsoleted_history_state, False)
-
-    @property
-    def _installed_history_state(self):
-        return self._HISTORY_INSTALLED_STATES[self.op_type]
-
-    def installs(self):
-        # :api
-        return [] if self.installed is None else [self.installed]
-
-    @property
-    def _obsoleted_history_state(self):
-        return 'Obsoleted'
-
-    @property
-    def _obsoleting_history_state(self):
-        return 'Obsoleting'
-
-    def _propagated_reason(self, history, installonly):
-        if self.reason == SwdbReason.USER:
-            return self.reason
-        if self.installed and installonly.filter(name=self.installed.name):
-            return SwdbReason.USER
-        if self.op_type in self._HISTORY_ERASE and self.erased:
-            previously = history.reason(self.erased)
-            if previously:
-                return previously
-        if self.obsoleted:
-            reasons = set()
-            for obs in self.obsoleted:
-                reasons.add(history.reason(obs))
-            if reasons:
-                if SwdbReason.USER in reasons:
-                    return SwdbReason.USER
-                if SwdbReason.GROUP in reasons:
-                    return SwdbReason.GROUP
-                if SwdbReason.DEP in reasons:
-                    return SwdbReason.DEP
-                if SwdbReason.WEAK in reasons:
-                    return SwdbReason.WEAK
-        return self.reason
-
-    def _propagate_reason(self, history, installonlypkgs):
-        reason = self._propagated_reason(history, installonlypkgs)
-        if reason:
-            self.reason = reason
-
-    def removes(self):
-        # :api
-        l =  [] if self.erased is None else [self.erased]
-        return l + self.obsoleted
+# transaction-wide actions
+TRANS_PREPARATION = 201
+TRANS_POST = 202
 
 
-class Transaction(object):
-    # :api
+# packages that appeared on the system
+FORWARD_ACTIONS = [
+    libdnf.transaction.TransactionItemAction_INSTALL,
+    libdnf.transaction.TransactionItemAction_DOWNGRADE,
+    libdnf.transaction.TransactionItemAction_OBSOLETE,
+    libdnf.transaction.TransactionItemAction_UPGRADE,
+    libdnf.transaction.TransactionItemAction_REINSTALL,
+]
 
-    def __init__(self):
-        # :api
-        self._tsis = []
 
-    def __iter__(self):
-        #: api
-        return iter(self._tsis)
+# packages that got removed from the system
+BACKWARD_ACTIONS = [
+    libdnf.transaction.TransactionItemAction_DOWNGRADED,
+    libdnf.transaction.TransactionItemAction_OBSOLETED,
+    libdnf.transaction.TransactionItemAction_UPGRADED,
+    libdnf.transaction.TransactionItemAction_REMOVE,
+# TODO: REINSTALLED may and may not belong here; the same NEVRA is in FORWARD_ACTIONS already
+#    libdnf.transaction.TransactionItemAction_REINSTALLED,
+]
 
-    def __len__(self):
-        return len(self._tsis)
 
-    def _items2set(self, extracting_fn):
-        lists = map(extracting_fn, self._tsis)
-        sets = map(set, lists)
-        return reduce(operator.or_, sets, set())
+ACTIONS = {
+    # TRANSLATORS: This is for a single package currently being downgraded.
+    PKG_DOWNGRADE: C_('currently', 'Downgrading'),
+    PKG_DOWNGRADED: _('Cleanup'),
+    # TRANSLATORS: This is for a single package currently being installed.
+    PKG_INSTALL: C_('currently', 'Installing'),
+    PKG_OBSOLETE: _('Obsoleting'),
+    PKG_OBSOLETED: _('Obsoleting'),
+    # TRANSLATORS: This is for a single package currently being reinstalled.
+    PKG_REINSTALL: C_('currently', 'Reinstalling'),
+    PKG_REINSTALLED: _('Cleanup'),
+    # TODO: 'Removing'?
+    PKG_REMOVE: _('Erasing'),
+    # TRANSLATORS: This is for a single package currently being upgraded.
+    PKG_UPGRADE: C_('currently', 'Upgrading'),
+    PKG_UPGRADED: _('Cleanup'),
 
-    def add_downgrade(self, new, downgraded, obsoleted):
-        # :api
-        tsi = TransactionItem(DOWNGRADE, new, downgraded, obsoleted)
-        self._tsis.append(tsi)
+    PKG_CLEANUP: _('Cleanup'),
+    PKG_VERIFY: _('Verifying'),
+    PKG_SCRIPTLET: _('Running scriptlet'),
 
-    def add_erase(self, erased):
-        # :api
-        tsi = TransactionItem(ERASE, erased=erased)
-        self._tsis.append(tsi)
+    TRANS_PREPARATION: _('Preparing'),
+    # TODO: TRANS_POST
+}
 
-    def add_install(self, new, obsoleted, reason=SwdbReason.UNKNOWN):
-        # :api
-        reason = convert_reason(reason)  # support for string reasons
-        tsi = TransactionItem(INSTALL, new, obsoleted=obsoleted,
-                              reason=reason)
-        self._tsis.append(tsi)
 
-    def add_reinstall(self, new, reinstalled, obsoleted):
-        # :api
-        tsi = TransactionItem(REINSTALL, new, reinstalled, obsoleted)
-        self._tsis.append(tsi)
+# untranslated strings, logging to /var/log/dnf/dnf.rpm.log
+FILE_ACTIONS = {
+    PKG_DOWNGRADE: 'Downgrade',
+    PKG_DOWNGRADED: 'Downgraded',
+    PKG_INSTALL: 'Installed',
+    PKG_OBSOLETE: 'Obsolete',
+    PKG_OBSOLETED: 'Obsoleted',
+    PKG_REINSTALL: 'Reinstall',
+    PKG_REINSTALLED: 'Reinstalled',
+    # TODO: 'Removed'?
+    PKG_REMOVE: 'Erase',
+    PKG_UPGRADE: 'Upgrade',
+    PKG_UPGRADED: 'Upgraded',
 
-    def add_upgrade(self, upgrade, upgraded, obsoleted):
-        # :api
-        tsi = TransactionItem(UPGRADE, upgrade, upgraded, obsoleted)
-        self._tsis.append(tsi)
+    PKG_CLEANUP: 'Cleanup',
+    PKG_VERIFY: 'Verified',
+    PKG_SCRIPTLET: 'Running scriptlet',
 
-    def _get_items(self, op_type):
-        return [tsi for tsi in self._tsis if tsi.op_type == op_type]
-
-    @property
-    def install_set(self):
-        # :api
-        fn = operator.methodcaller('installs')
-        return self._items2set(fn)
-
-    def _populate_rpm_ts(self, ts):
-        """Populate the RPM transaction set."""
-
-        for tsi in self._tsis:
-            if tsi.op_type == DOWNGRADE:
-                ts.addErase(tsi.erased.idx)
-                hdr = tsi.installed._header
-                ts.addInstall(hdr, tsi, 'u')
-            elif tsi.op_type == ERASE:
-                ts.addErase(tsi.erased.idx)
-            elif tsi.op_type == INSTALL:
-                hdr = tsi.installed._header
-                if tsi.obsoleted:
-                    ts.addInstall(hdr, tsi, 'u')
-                else:
-                    ts.addInstall(hdr, tsi, 'i')
-            elif tsi.op_type == REINSTALL:
-                # note: in rpm 4.12 there should not be set
-                # rpm.RPMPROB_FILTER_REPLACEPKG to work
-                ts.addReinstall(tsi.installed._header, tsi)
-                if tsi.obsoleted:
-                    for pkg in tsi.obsoleted:
-                        ts.addErase(pkg.idx)
-            elif tsi.op_type == UPGRADE:
-                hdr = tsi.installed._header
-                ts.addInstall(hdr, tsi, 'u')
-        return ts
-
-    @property
-    def remove_set(self):
-        # :api
-        fn = operator.methodcaller('removes')
-        return self._items2set(fn)
-
-    def _rpm_limitations(self):
-        """ Ensures all the members can be passed to rpm as they are to perform
-            the transaction.
-        """
-        src_installs = [pkg for pkg in self.install_set if pkg.arch == 'src']
-        if len(src_installs):
-            return _("Will not install a source rpm package (%s).") % \
-                src_installs[0]
-        return None
-
-    def _total_package_count(self):
-        return len(self.install_set | self.remove_set)
+    TRANS_PREPARATION: 'Preparing',
+    # TODO: TRANS_POST
+}

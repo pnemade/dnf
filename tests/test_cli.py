@@ -165,7 +165,7 @@ class CliTest(tests.support.DnfBaseTestCase):
         self.cli.demands.fresh_metadata = False
         self.cli.demands.cacheonly = True
         self.cli._process_demands()
-        self.assertEqual(self.base.repos['one']._sync_strategy,
+        self.assertEqual(self.base.repos['one']._repo.getSyncStrategy(),
                          dnf.repo.SYNC_ONLY_CACHE)
 
 
@@ -190,7 +190,7 @@ class ConfigureTest(tests.support.DnfBaseTestCase):
         self.base._conf = dnf.conf.Conf()
         with mock.patch('dnf.rpm.detect_releasever', return_value=69):
             self.cli.configure(['update', '-c', self.conffile])
-        reg = re.compile('^/var/tmp/dnf-[a-zA-Z0-9_-]+$')
+        reg = re.compile('^/var/tmp/dnf-[.a-zA-Z0-9_-]+$')
         self.assertIsNotNone(reg.match(self.base.conf.cachedir))
         self.assertEqual(self.cli.cmdstring, "dnf update -c %s " % self.conffile)
 

@@ -1,5 +1,5 @@
 ..
-  Copyright (C) 2014-2016 Red Hat, Inc.
+  Copyright (C) 2014-2018 Red Hat, Inc.
 
   This copyrighted material is made available to anyone wishing to use,
   modify, copy, or redistribute it subject to the terms and conditions of
@@ -59,29 +59,31 @@
 
     Allowed keys are:
 
-    ==========   ============== ======================================================
-    key          value type     value meaning
-    ==========   ============== ======================================================
-    arch         string         match against packages' architecture
-    downgrades   boolean        see :meth:`downgrades`. Defaults to ``False``.
-    empty        boolean        ``True`` limits to empty result set.
-                                Defaults to ``False``.
-    epoch        integer        match against packages' epoch.
-    file         string         match against packages' files
-    latest       boolean        see :meth:`latest`.  Defaults to ``False``.
-    name         string         match against packages' names
-    release      string         match against packages' releases
-    reponame     string         match against packages repositories' names
-    version      string         match against packages' versions
-    obsoletes    Query          match packages that obsolete any package from query
-    pkg          Query          match against packages in query
-    pkg*         list           match against hawkey.Packages in list
-    provides     string         match against packages' provides
-    provides*    Hawkey.Reldep  match against packages' provides
-    requires     string         match against packages' requirements
-    requires*    Hawkey.Reldep  match against packages' requirements
-    upgrades     boolean        see :meth:`upgrades`. Defaults to ``False``.
-    ==========   ============== ======================================================
+    ===============   ============== ======================================================
+    key               value type     value meaning
+    ===============   ============== ======================================================
+    arch              string         match against packages' architecture
+    downgrades        boolean        see :meth:`downgrades`. Defaults to ``False``.
+    empty             boolean        ``True`` limits to empty result set.
+                                     Defaults to ``False``.
+    epoch             integer        match against packages' epoch.
+    file              string         match against packages' files
+    latest            integer        limit to all packages of number of versions
+    latest_per_arch   integer        see :meth:`latest`.
+    name              string         match against packages' names
+    release           string         match against packages' releases
+    reponame          string         match against packages repositories' names
+    version           string         match against packages' versions
+    obsoletes         Query          match packages that obsolete any package from query
+    pkg               Query          match against packages in query
+    pkg*              list           match against hawkey.Packages in list
+    provides          string         match against packages' provides
+    provides*         Hawkey.Reldep  match against packages' provides
+    requires          string         match against packages' requirements
+    requires*         Hawkey.Reldep  match against packages' requirements
+    sourcerpm         string         match against packages' source rpm
+    upgrades          boolean        see :meth:`upgrades`. Defaults to ``False``.
+    ===============   ============== ======================================================
 
     *The key can also accept a list of values with specified type.
 
@@ -103,6 +105,10 @@
     For example, the following creates a query that matches all packages containing the string "club" in its name::
 
       q = base.sack.query().filter(name__substr="club")
+
+  .. method:: filterm(**kwargs)
+
+    Similar to :meth:`dnf.query.Query.filter` but it modifies the query in place.
 
   .. method:: installed
 

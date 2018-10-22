@@ -49,6 +49,16 @@ class MultiFileProgressMeter(dnf.callback.DownloadProgress):
         self.unknown_progres = 0
         self.total_drpm = 0
         self.isatty = sys.stdout.isatty()
+        self.done_drpm = 0
+        self.done_files = 0
+        self.done_size = 0
+        self.active = []
+        self.state = {}
+        self.last_time = 0
+        self.last_size = 0
+        self.rate = None
+        self.total_files = 0
+        self.total_size = 0
 
     def message(self, msg):
         dnf.util._terminal_messenger('write_flush', msg, self.fo)
@@ -62,8 +72,8 @@ class MultiFileProgressMeter(dnf.callback.DownloadProgress):
         self.done_drpm = 0
         self.done_files = 0
         self.done_size = 0
-        self.state = {}
         self.active = []
+        self.state = {}
 
         # rate averaging
         self.last_time = 0
@@ -137,17 +147,17 @@ class MultiFileProgressMeter(dnf.callback.DownloadProgress):
                 p = 3
                 n = 0 if n < 0 else n
                 bar = ' ' * n + '=' * p
-                msg = '%3s%% [%-*s]%s' % ('???', bl, bar, msg)
+                msg = '     [%-*s]%s' % (bl, bar, msg)
                 left -= bl + 7
                 self.unknown_progres = self.unknown_progres + 3 if self.unknown_progres + 3 < bl \
                     else 0
-
         self.message('%-*.*s%s' % (left, left, text, msg))
 
     def end(self, payload, status, err_msg):
         start = now = time()
         text = unicode(payload)
         size = int(payload.download_size)
+        done = 0
 
         # update state
         if status == dnf.callback.STATUS_MIRROR:

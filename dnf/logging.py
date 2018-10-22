@@ -23,7 +23,7 @@ from __future__ import unicode_literals
 import dnf.exceptions
 import dnf.const
 import dnf.util
-import librepo
+import libdnf.repo
 import logging
 import os
 import sys
@@ -40,6 +40,7 @@ INFO = logging.INFO
 DEBUG = logging.DEBUG
 DDEBUG = 8
 SUBDEBUG = 6
+TRACE = 4
 
 def only_once(func):
     """Method decorator turning the method into noop on second or later calls."""
@@ -73,11 +74,13 @@ def _cfg_verbose_val2level(cfg_errval):
     assert 0 <= cfg_errval <= 10
     return _VERBOSE_VAL_MAPPING.get(cfg_errval, DDEBUG)
 
+
 # Both the DNF default and the verbose default are WARNING. Note that ERROR has
 # no specific level.
 _ERR_VAL_MAPPING = {
-    0 : SUPERCRITICAL,
-    1 : logging.CRITICAL
+    0: SUPERCRITICAL,
+    1: logging.CRITICAL,
+    2: logging.ERROR
     }
 
 def _cfg_err_val2level(cfg_errval):
@@ -110,8 +113,9 @@ class Logging(object):
     def _presetup(self):
         logging.addLevelName(DDEBUG, "DDEBUG")
         logging.addLevelName(SUBDEBUG, "SUBDEBUG")
+        logging.addLevelName(TRACE, "TRACE")
         logger_dnf = logging.getLogger("dnf")
-        logger_dnf.setLevel(SUBDEBUG)
+        logger_dnf.setLevel(TRACE)
 
         # setup stdout
         stdout = logging.StreamHandler(sys.stdout)
@@ -140,9 +144,6 @@ class Logging(object):
         self.stderr_handler.setLevel(SUPERCRITICAL)
         # put the marker in the file now:
         _paint_mark(logger_dnf)
-        # bring std handlers to the preferred level
-        self.stdout_handler.setLevel(verbose_level)
-        self.stderr_handler.setLevel(error_level)
 
         # setup Python warnings
         logging.captureWarnings(True)
@@ -151,7 +152,7 @@ class Logging(object):
         logger_warnings.addHandler(handler)
 
         lr_logfile = os.path.join(logdir, dnf.const.LOG_LIBREPO)
-        librepo.log_set_file(lr_logfile)
+        libdnf.repo.LibrepoLog.addHandler(lr_logfile)
 
         # setup RPM callbacks logger
         logger_rpm = logging.getLogger("dnf.rpm")
@@ -159,8 +160,13 @@ class Logging(object):
         logger_rpm.setLevel(SUBDEBUG)
         logfile = os.path.join(logdir, dnf.const.LOG_RPM)
         handler = _create_filehandler(logfile)
+        logger_rpm.addHandler(self.stdout_handler)
+        logger_rpm.addHandler(self.stderr_handler)
         logger_rpm.addHandler(handler)
         _paint_mark(logger_rpm)
+        # bring std handlers to the preferred level
+        self.stdout_handler.setLevel(verbose_level)
+        self.stderr_handler.setLevel(error_level)
         logging.raiseExceptions = False
 
     def _setup_from_dnf_conf(self, conf):
@@ -179,3 +185,35 @@ class Timer(object):
         diff = time.time() - self.start
         msg = 'timer: %s: %d ms' % (self.what, diff * 1000)
         logging.getLogger("dnf").log(DDEBUG, msg)
+
+
+_LIBDNF_TO_DNF_LOGLEVEL_MAPPING = {
+    libdnf.utils.Logger.Level_CRITICAL: CRITICAL,
+    libdnf.utils.Logger.Level_ERROR: ERROR,
+    libdnf.utils.Logger.Level_WARNING: WARNING,
+    libdnf.utils.Logger.Level_NOTICE: INFO,
+    libdnf.utils.Logger.Level_INFO: INFO,
+    libdnf.utils.Logger.Level_DEBUG: DEBUG,
+    libdnf.utils.Logger.Level_TRACE: TRACE
+}
+
+
+class LibdnfLoggerCB(libdnf.utils.Logger):
+    def __init__(self):
+        super(LibdnfLoggerCB, self).__init__()
+        self._logger = logging.getLogger("dnf")
+
+    def write(self, source, *args):
+        """Log message.
+
+        source -- integer, defines origin (libdnf, librepo, ...) of message, 0 - unknown
+        """
+        if len(args) == 2:
+            level, message = args
+        elif len(args) == 4:
+            time, pid, level, message = args
+        self._logger.log(_LIBDNF_TO_DNF_LOGLEVEL_MAPPING[level], message)
+
+
+libdnfLoggerCB = LibdnfLoggerCB()
+libdnf.utils.Log.setLogger(libdnfLoggerCB)

@@ -1,5 +1,5 @@
 ..
-  Copyright (C) 2014-2016 Red Hat, Inc.
+  Copyright (C) 2014-2018 Red Hat, Inc.
 
   This copyrighted material is made available to anyone wishing to use,
   modify, copy, or redistribute it subject to the terms and conditions of
@@ -45,6 +45,14 @@ or :ref:`mirrorlist <mirrorlist-label>` option definition.
 ================
  [main] Options
 ================
+
+.. _arch-label:
+
+``arch``
+    :ref:`string <string-label>`
+
+    The architecture used for installing packages. By default this is auto-detected. Often used
+    together with :ref:`ignorearch <ignorearch-label>` option.
 
 .. _assumeyes-label:
 
@@ -113,7 +121,7 @@ or :ref:`mirrorlist <mirrorlist-label>` option definition.
     :ref:`integer <integer-label>`
 
     Error messages output level, in the range 0 to 10. The higher the number the
-    more error output is put to stderr. Default is 2. This is deprecated in DNF
+    more error output is put to stderr. Default is 3. This is deprecated in DNF
     and overwritten by \-\ :ref:`-verbose <verbose_options-label>` commandline
     option.
 
@@ -122,11 +130,38 @@ or :ref:`mirrorlist <mirrorlist-label>` option definition.
 
     Should the dnf client exit immediately when something else has the lock. Default is False
 
+``gpgkey_dns_verification``
+    :ref:`boolean <boolean-label>`
+
+    Should the dnf attempt to automatically verify GPG verification keys using the DNS
+    system. This option requires libunbound to be installed on the client system. This
+    system has two main features. The first one is to check if any of the already
+    installed keys have been revoked. Automatic removal of the key is not yet available,
+    so it is up to the user, to remove revoked keys from the system. The second feature is
+    automatic verification of new keys when a repository is added to the system. In
+    interactive mode, the result is written to the output as a suggestion to the user. In
+    non-interactive mode (i.e. when -y is used), this system will automatically accept
+    keys that are available in the DNS and are correctly signed using DNSSEC. It will also
+    accept keys that do not exist in the DNS system and their NON-existence is
+    cryptographically proven using DNSSEC. This is mainly to preserve backward
+    compatibility.
+
+
 ``group_package_types``
     :ref:`list <list-label>`
 
     List of the following: optional, default, mandatory. Tells dnf which type of packages in groups will
     be installed when 'groupinstall' is called. Default is: default, mandatory
+
+.. _ignorearch-label:
+
+``ignorearch``
+    :ref:`boolean <boolean-label>`
+
+    If set to ``True``, RPM will allow attempts to install packages incompatible with the CPU's
+    architecture. Defaults to ``False``. Often used together with
+    :ref:`arch <arch-label>` option.
+
 
 ``install_weak_deps``
     :ref:`boolean <boolean-label>`
@@ -183,6 +218,14 @@ or :ref:`mirrorlist <mirrorlist-label>` option definition.
     last run. Does not affect simple ``makecache`` run. Use ``0`` to completely
     disable automatic metadata synchronizing. The default corresponds to three
     hours. The value is rounded to the next commenced hour.
+
+.. _module_platform_id-label:
+
+``module_platform_id``
+    :ref:`string <string-label>`
+
+    Set this to $name:$stream to override PLATFORM_ID detected from /etc/os-release.
+    It is necessary to perform a system upgrade and switch to a new platform.
 
 .. _obsoletes_conf_option-label:
 
@@ -284,6 +327,16 @@ or :ref:`mirrorlist <mirrorlist-label>` option definition.
     :ref:`string <string-label>`
 
     URL of a mirrorlist for the repository.
+
+.. _module_hotfixes-label:
+
+``module_hotfixes``
+    :ref:`boolean <boolean-label>`
+
+    Set this to True to disable module RPM filtering and make all RPMs from the repository available. The default is False.
+    This allows user to create a repository with cherry-picked hotfixes that are included in a package set on a modular system.
+
+.. _mirrorlist-label:
 
 ``name``
     :ref:`string <string-label>`
@@ -459,6 +512,11 @@ configuration.
     :ref:`string <string-label>`
 
     The password to use for connecting to the proxy server. Empty by default.
+
+``proxy_auth_method``
+    :ref:`string <string-label>`
+
+    The authentication method used by the proxy server. Valid values are 'basic', 'digest', 'negotiate', 'ntlm', 'digest_ie', 'ntlm_wb', 'none' and 'any' (default).
 
 .. _repo_gpgcheck-label:
 

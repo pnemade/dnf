@@ -1,23 +1,28 @@
-%global hawkey_version 0.13.0
-%global librepo_version 1.7.19
+# default dependencies
+%global hawkey_version 0.22.0
 %global libcomps_version 0.1.8
+%global libmodulemd_version 1.4.0
 %global rpm_version 4.14.0
+
+# conflicts
+%global conflicts_dnf_plugins_core_version 3.1
+%global conflicts_dnf_plugins_extras_version 3.0.2
+%global conflicts_dnfdaemon_version 0.3.19
+
+# override dependencies for rhel 7
 %if 0%{?rhel} == 7
-%global rpm_version 4.11.3-27
+    %global rpm_version 4.11.3-32
 %endif
+
+%if 0%{?rhel} == 7 && 0%{?centos}
+    %global rpm_version 4.11.3-25.el7.centos.1
+%endif
+
+# override dependencies for fedora 26
 %if 0%{?fedora} == 26
-%global rpm_version 4.13.0.1-7
+    %global rpm_version 4.13.0.1-7
 %endif
-%if 0%{?fedora} > 26
-%global rpm_version 4.13.90
-%endif
-%global min_plugins_core 2.1.3
-%global dnf_langpacks_ver 0.15.1-6
 
-%global confdir %{_sysconfdir}/%{name}
-
-%global pluginconfpath %{confdir}/plugins
-%global py2pluginpath %{python2_sitelib}/%{name}-plugins
 
 %if 0%{?rhel} && 0%{?rhel} <= 7
 %bcond_with python3
@@ -25,17 +30,51 @@
 %bcond_without python3
 %endif
 
+%if 0%{?rhel} >= 8 || 0%{?fedora} > 29
+# Disable python2 build
+%bcond_with python2
+%else
+%bcond_without python2
+%endif
+
+# configurable name for the compat yum package
+%global yum_subpackage_name %{name}-yum
+
+# provide nextgen-yum4 on rhel <= 7 to avoid conflict with existing yum
+%if 0%{?rhel} && 0%{?rhel} <= 7
+    %global yum_subpackage_name nextgen-yum4
+%endif
+
+# provide yum on rhel >= 8, it replaces old yum
+%if 0%{?rhel} && 0%{?rhel} >= 8
+    %global yum_subpackage_name yum
+%endif
+
+
+# paths
+%global confdir %{_sysconfdir}/%{name}
+%global pluginconfpath %{confdir}/plugins
+
+%if %{with python2}
+    %global py2pluginpath %{python2_sitelib}/%{name}-plugins
+%endif
+
 %if %{with python3}
-%global py3pluginpath %{python3_sitelib}/%{name}-plugins
+    %global py3pluginpath %{python3_sitelib}/%{name}-plugins
 %endif
 
 # Use the same directory of the main package for subpackage licence and docs
 %global _docdir_fmt %{name}
 
+
+%global pkg_summary     Package manager
+%global pkg_description Utility that allows users to manage packages on their systems. \
+It supports RPMs, modules and comps groups & environments.
+
 Name:           dnf
-Version:        2.8.6
+Version:        4.0.4
 Release:        1%{?dist}
-Summary:        Package manager forked from Yum, using libsolv as a dependency resolver
+Summary:        %{pkg_summary}
 # For a breakdown of the licensing, see PACKAGE-LICENSING
 License:        GPLv2+ and GPLv2 and GPL
 URL:            https://github.com/rpm-software-management/dnf
@@ -88,69 +127,79 @@ Provides:       dnf-command(search)
 Provides:       dnf-command(updateinfo)
 Provides:       dnf-command(upgrade)
 Provides:       dnf-command(upgrade-to)
-Conflicts:      python2-dnf-plugins-core < %{min_plugins_core}
-Conflicts:      python3-dnf-plugins-core < %{min_plugins_core}
-
-# dnf-langpacks package is retired in F25
-# to have clean upgrade path for dnf-langpacks
-Obsoletes:      dnf-langpacks < %{dnf_langpacks_ver}
+Conflicts:      python2-dnf-plugins-core < %{conflicts_dnf_plugins_core_version}
+Conflicts:      python3-dnf-plugins-core < %{conflicts_dnf_plugins_core_version}
+Conflicts:      python2-dnf-plugins-extras < %{conflicts_dnf_plugins_extras_version}
+Conflicts:      python3-dnf-plugins-extras < %{conflicts_dnf_plugins_extras_version}
 
 %description
-Package manager forked from Yum, using libsolv as a dependency resolver.
+%{pkg_description}
 
-%package conf
-Summary:        Configuration files for DNF
+%package data
+Summary:        Common data and configuration files for DNF
 Requires:       libreport-filesystem
-# dnf-langpacks package is retired in F25
-# to have clean upgrade path for dnf-langpacks
-Obsoletes:      dnf-langpacks-conf < %{dnf_langpacks_ver}
+Obsoletes:      %{name}-conf <= %{version}-%{release}
+Provides:       %{name}-conf = %{version}-%{release}
 
-%description conf
-Configuration files for DNF.
+%description data
+Common data and configuration files for DNF
 
-%if 0%{?rhel} && 0%{?rhel} <= 7
-%package -n yum4
+%package -n %{yum_subpackage_name}
 Requires:       %{name} = %{version}-%{release}
-Summary:        As a Yum CLI compatibility layer, supplies /usr/bin/yum4 redirecting to DNF
-
-%description -n yum4
-As a Yum CLI compatibility layer, supplies /usr/bin/yum redirecting to DNF.
-
+Summary:        %{pkg_summary}
+%if 0%{?fedora}
+%if 0%{?fedora} >= 30
+Conflicts:      yum
 %else
-%package yum
 Conflicts:      yum < 3.4.3-505
-Requires:       %{name} = %{version}-%{release}
-Summary:        As a Yum CLI compatibility layer, supplies /usr/bin/yum redirecting to DNF
-
-%description yum
-As a Yum CLI compatibility layer, supplies /usr/bin/yum redirecting to DNF.
+%endif
 %endif
 
+%description -n %{yum_subpackage_name}
+%{pkg_description}
+
+%if %{with python2}
 %package -n python2-%{name}
 Summary:        Python 2 interface to DNF
 %{?python_provide:%python_provide python2-%{name}}
 BuildRequires:  python2-devel
 BuildRequires:  python2-hawkey >= %{hawkey_version}
+BuildRequires:  python2-libdnf >= %{hawkey_version}
 BuildRequires:  python2-libcomps >= %{libcomps_version}
-BuildRequires:  python2-librepo >= %{librepo_version}
+BuildRequires:  python2-libdnf
 BuildRequires:  python2-nose
+BuildRequires:  libmodulemd >= %{libmodulemd_version}
+Requires:       libmodulemd >= %{libmodulemd_version}
+%if (0%{?rhel} && 0%{?rhel} <= 7)
+BuildRequires:  pygpgme
+Requires:       pygpgme
+BuildRequires:  python-enum34
+Requires:       python-enum34
+%else
 BuildRequires:  python2-gpg
 Requires:       python2-gpg
+BuildRequires:  python2-enum34
+Requires:       python2-enum34
+%endif
 BuildRequires:  pyliblzma
 Requires:       pyliblzma
-Requires:       %{name}-conf = %{version}-%{release}
-%if 0%{?fedora} || 0%{?centos}
+Requires:       %{name}-data = %{version}-%{release}
+%if 0%{?fedora}
+Recommends:     deltarpm
+Recommends:     python2-unbound
+%endif
+%if 0%{?centos}
 Requires:       deltarpm
 %endif
 Requires:       python2-hawkey >= %{hawkey_version}
+Requires:       python2-libdnf >= %{hawkey_version}
 Requires:       python2-libcomps >= %{libcomps_version}
-Requires:       python2-librepo >= %{librepo_version}
+Requires:       python2-libdnf
 %if 0%{?rhel} && 0%{?rhel} <= 7
 BuildRequires:  python-iniparse
 Requires:       python-iniparse
 BuildRequires:  rpm-python >= %{rpm_version}
 Requires:       rpm-python >= %{rpm_version}
-Requires:       rpm-plugin-systemd-inhibit
 %else
 BuildRequires:  python2-iniparse
 Requires:       python2-iniparse
@@ -158,99 +207,115 @@ BuildRequires:  python2-rpm >= %{rpm_version}
 Requires:       python2-rpm >= %{rpm_version}
 Recommends:     rpm-plugin-systemd-inhibit
 %endif
-# dnf-langpacks package is retired in F25
-# to have clean upgrade path for dnf-langpacks
-Obsoletes:      python-dnf-langpacks < %{dnf_langpacks_ver}
+Conflicts:      dnfdaemon < %{conflicts_dnfdaemon_version}
 
 %description -n python2-%{name}
 Python 2 interface to DNF.
+%endif  # %%{with python2}
 
 %if %{with python3}
 %package -n python3-%{name}
-Summary:        Python 3 interface to DNF.
-%{?system_python_abi}
+Summary:        Python 3 interface to DNF
 %{?python_provide:%python_provide python3-%{name}}
 BuildRequires:  python3-devel
 BuildRequires:  python3-hawkey >= %{hawkey_version}
+BuildRequires:  python3-libdnf >= %{hawkey_version}
 BuildRequires:  python3-iniparse
 BuildRequires:  python3-libcomps >= %{libcomps_version}
-BuildRequires:  python3-librepo >= %{librepo_version}
+BuildRequires:  python3-libdnf
+BuildRequires:  libmodulemd >= %{libmodulemd_version}
+Requires:       libmodulemd >= %{libmodulemd_version}
 BuildRequires:  python3-nose
 BuildRequires:  python3-gpg
 Requires:       python3-gpg
-Requires:       %{name}-conf = %{version}-%{release}
-%if 0%{?fedora} || 0%{?centos}
+Requires:       %{name}-data = %{version}-%{release}
+%if 0%{?fedora}
+Recommends:     deltarpm
+%endif
+%if 0%{?centos}
 Requires:       deltarpm
 %endif
 Requires:       python3-hawkey >= %{hawkey_version}
+Requires:       python3-libdnf >= %{hawkey_version}
 Requires:       python3-iniparse
 Requires:       python3-libcomps >= %{libcomps_version}
-Requires:       python3-librepo >= %{librepo_version}
+Requires:       python3-libdnf
 BuildRequires:  python3-rpm >= %{rpm_version}
 Requires:       python3-rpm >= %{rpm_version}
+Recommends:     python3-unbound
 %if 0%{?rhel} && 0%{?rhel} <= 7
 Requires:       rpm-plugin-systemd-inhibit
 %else
 Recommends:     rpm-plugin-systemd-inhibit
 %endif
-# dnf-langpacks package is retired in F25
-# to have clean upgrade path for dnf-langpacks
-Obsoletes:      python3-dnf-langpacks < %{dnf_langpacks_ver}
 
 %description -n python3-%{name}
 Python 3 interface to DNF.
 %endif
 
 %package automatic
-Summary:        Alternative CLI to "dnf upgrade" suitable for automatic, regular execution.
+Summary:        %{pkg_summary} - automated upgrades
 BuildRequires:  systemd
 Requires:       %{name} = %{version}-%{release}
 %{?systemd_requires}
 
 %description automatic
-Alternative CLI to "dnf upgrade" suitable for automatic, regular execution.
+Systemd units that can periodically download package upgrades and apply them.
+
 
 %prep
 %autosetup
-mkdir build
-%if %{with python3}
+mkdir build-py2
 mkdir build-py3
-%endif
+
 
 %build
-pushd build
-  %cmake ..
-  %make_build
-  make doc-man
-popd
-%if %{with python3}
-pushd build-py3
-  %cmake .. -DPYTHON_DESIRED:str=3 -DWITH_MAN=0
-  %make_build
-popd
+%if %{with python2}
+    pushd build-py2
+    %cmake .. -DPYTHON_DESIRED:FILEPATH=%{__python2}
+    %make_build
+    make doc-man
+    popd
 %endif
 
-%install
-pushd build
-  %make_install
-popd
 %if %{with python3}
-pushd build-py3
-  %make_install
-popd
+    pushd build-py3
+    %cmake .. -DPYTHON_DESIRED:FILEPATH=%{__python3}
+    %make_build
+    make doc-man
+    popd
 %endif
+
+
+%install
+%if %{with python2}
+    pushd build-py2
+    %make_install
+    popd
+%endif
+
+%if %{with python3}
+    pushd build-py3
+    %make_install
+    popd
+%endif
+
 %find_lang %{name}
 mkdir -p %{buildroot}%{confdir}/vars
 mkdir -p %{buildroot}%{pluginconfpath}/
+mkdir -p %{buildroot}%{_sysconfdir}/%{name}/modules.d
+mkdir -p %{buildroot}%{_sysconfdir}/%{name}/modules.defaults.d
+%if %{with python2}
 mkdir -p %{buildroot}%{py2pluginpath}/
+%endif
 %if %{with python3}
 mkdir -p %{buildroot}%{py3pluginpath}/__pycache__/
 %endif
+ln -sr  %{buildroot}%{confdir}/%{name}.conf %{buildroot}%{_sysconfdir}/yum.conf
 mkdir -p %{buildroot}%{_localstatedir}/log/
 mkdir -p %{buildroot}%{_var}/cache/dnf/
 touch %{buildroot}%{_localstatedir}/log/%{name}.log
 %if %{with python3}
-%{?system_python_abi:sed -i 's|#!%{__python3}|#!%{_libexecdir}/system-python|' %{buildroot}%{_bindir}/dnf-3}
 ln -sr %{buildroot}%{_bindir}/dnf-3 %{buildroot}%{_bindir}/dnf
 mv %{buildroot}%{_bindir}/dnf-automatic-3 %{buildroot}%{_bindir}/dnf-automatic
 ln -sr  %{buildroot}%{_bindir}/dnf-3 %{buildroot}%{_bindir}/yum
@@ -266,16 +331,27 @@ ln -sr  %{buildroot}%{_bindir}/dnf-2 %{buildroot}%{_bindir}/yum
 %endif
 %endif
 rm -vf %{buildroot}%{_bindir}/dnf-automatic-*
+%if "%{yum_subpackage_name}" == "yum"
+mkdir -p %{buildroot}%{_sysconfdir}/yum
+ln -sr  %{buildroot}%{pluginconfpath} %{buildroot}%{_sysconfdir}/yum/pluginconf.d
+ln -sr  %{buildroot}%{confdir}/protected.d %{buildroot}%{_sysconfdir}/yum/protected.d
+ln -sr  %{buildroot}%{confdir}/vars %{buildroot}%{_sysconfdir}/yum/vars
+%endif
+
 
 %check
-pushd build
-  ctest -VV
-popd
-%if %{with python3}
-pushd build-py3
-  ctest -VV
-popd
+%if %{with python2}
+    pushd build-py2
+    ctest -VV
+    popd
 %endif
+
+%if %{with python3}
+    pushd build-py3
+    ctest -VV
+    popd
+%endif
+
 
 %post
 %systemd_post dnf-makecache.timer
@@ -285,6 +361,7 @@ popd
 
 %postun
 %systemd_postun_with_restart dnf-makecache.timer
+
 
 %post automatic
 %systemd_post dnf-automatic.timer
@@ -304,6 +381,7 @@ popd
 %systemd_postun_with_restart dnf-automatic-download.timer
 %systemd_postun_with_restart dnf-automatic-install.timer
 
+
 %files -f %{name}.lang
 %{_bindir}/%{name}
 %if 0%{?rhel} && 0%{?rhel} <= 7
@@ -319,10 +397,12 @@ popd
 %{_unitdir}/%{name}-makecache.timer
 %{_var}/cache/%{name}/
 
-%files conf
+%files data
 %license COPYING PACKAGE-LICENSING
 %doc AUTHORS README.rst
 %dir %{confdir}
+%dir %{confdir}/modules.d
+%dir %{confdir}/modules.defaults.d
 %dir %{pluginconfpath}
 %dir %{confdir}/protected.d
 %dir %{confdir}/vars
@@ -342,23 +422,51 @@ popd
 %{_tmpfilesdir}/%{name}.conf
 %{_sysconfdir}/libreport/events.d/collect_dnf.conf
 
-%if 0%{?rhel} && 0%{?rhel} <= 7
-%files -n yum4
-%{_bindir}/yum4
-%{_mandir}/man8/yum4.8*
-%exclude %{_mandir}/man8/yum.8*
-
-%else
-%files yum
+%files -n %{yum_subpackage_name}
+%if "%{yum_subpackage_name}" == "yum"
 %{_bindir}/yum
 %{_mandir}/man8/yum.8*
+%{_sysconfdir}/yum.conf
+%{_sysconfdir}/yum/pluginconf.d
+%{_sysconfdir}/yum/protected.d
+%{_sysconfdir}/yum/vars
+%{_mandir}/man5/yum.conf.5.*
+%{_mandir}/man8/yum.8*
+%{_mandir}/man8/yum-shell.8*
+%else
+%exclude %{_mandir}/man8/yum-shell.8*
+%exclude %{_sysconfdir}/yum/pluginconf.d
+%exclude %{_sysconfdir}/yum/protected.d
+%exclude %{_sysconfdir}/yum/vars
 %endif
 
+%if "%{yum_subpackage_name}" == "nextgen-yum4"
+%{_bindir}/yum4
+%{_mandir}/man8/yum4.8*
+%exclude %{_sysconfdir}/yum.conf
+%exclude %{_mandir}/man5/yum.conf.5.*
+%exclude %{_mandir}/man8/yum.8*
+%endif
+
+%if "%{yum_subpackage_name}" == "%{name}-yum"
+%{_bindir}/yum
+%{_mandir}/man8/yum.8*
+%if 0%{?fedora} >= 30
+%{_sysconfdir}/yum.conf
+%{_mandir}/man5/yum.conf.5*
+%else
+%exclude %{_sysconfdir}/yum.conf
+%exclude %{_mandir}/man5/yum.conf.5*
+%endif
+%endif
+
+%if %{with python2}
 %files -n python2-%{name}
 %{_bindir}/%{name}-2
 %exclude %{python2_sitelib}/%{name}/automatic
 %{python2_sitelib}/%{name}/
 %dir %{py2pluginpath}
+%endif
 
 %if %{with python3}
 %files -n python3-%{name}
@@ -388,6 +496,174 @@ popd
 %endif
 
 %changelog
+* Mon Oct 15 2018 Jaroslav Mracek <jmracek@redhat.com> - 4.0.4-1
+- Update to 4.0.4
+- Add dnssec extension
+- Set termforce to AUTO to automatically detect if stdout is terminal
+- Repoquery command accepts --changelogs option (RhBug:1483458)
+- Calculate sack version from all installed packages (RhBug:1624291)
+- [module] Allow to enable module dependencies (RhBug:1622566)
+
+* Tue Sep 25 2018 Jaroslav Mracek <jmracek@redhat.com> - 3.6.1-1
+- [module] Improved module commands list, info
+- [module] Reports error from module solver
+- Fix: Error detected when calling 'RepoCB.fastestMirror' (RhBug:1628056)
+- Preserve packages from other installed mod profiles (RhBug:1629841)
+- [spec] Postpone conflict with yum to Fedora 30+ (RhBug:1600444)
+- [cli] Install command recommends alternative packages (RhBug:1625586)
+- [cli] Fix case insensitive hint (1628514)
+- Fix installed profiles for module info (RhBug:1629689)
+- Fix module provides not having consistent output (RhBug:1623866)
+- Enhance label for transaction table (RhBug:1609919)
+- Implement C_, the gettext function with a context (RhBug:1305340)
+- Actually disambiguate some messages using C_ (RhBug:1305340)
+- Restore 'strict' choice for group installs (#1461539)
+- [repoquery] More strict queryformat parsing (RhBug:1631458)
+- Redirect repo progress to std error (RhBug:1626011)
+- Unify behavior of remove and module remove (RhBug:1629848)
+- Change behavior of disabled module for module install (RhBug:1629711)
+- Allow enablement on disabled plugin (RhBug:1614539)
+
+* Mon Sep 10 2018 Jaroslav Mracek <jmracek@redhat.com> - 3.5.1-1
+- [module] Fixed list and info subcommands
+
+* Fri Sep 07 2018 Jaroslav Mracek <jmracek@redhat.com> - 3.5.0-1
+- New implementation of modularity
+
+* Fri Aug 31 2018 Daniel Mach <dmach@redhat.com> - 3.4.0-1
+- [history] Fix 'attempt to write a readonly database' error in addConsoleOutputLine().
+- [spec] Improve YUM v3 compat layer.
+- [doc] document missing link from yum-rhn-plugin to dnf-plugin-spacewalk (RhBug:1580356)
+- [doc] document difference between yum and dnf when listing packages (RhBug:1615834)
+- [doc] document missing download functionality after transaction table is displayed (RhBug:1585140)
+- [systemd] dnf-makecache.timer: move the ordering after network to .service
+- [translations] Update translations from zanata.
+- [cli] Fix 'already installed' message output.
+- [module] change 'module_nsvp' to 'module_spec'
+- [module] show module profiles without ', ...'
+- [module] unify usability of RepoModuleDict.get_info*(); fix traceback
+- [security] fix update count (RhBug:1585138)
+- [cli] enable reposync to use --destdir (RhBug:1582152)
+- [repo] Replace dnf.repo.Repo with libdnf implementation.
+- [dnf] Limit DeprecationWarning to dnf.* modules only.
+
+* Mon Aug 13 2018 Daniel Mach <dmach@redhat.com> - 3.3.0-1
+- [misc] Fallback to os.getuid() if /proc/self/loginuid can't be read (RhBug:1597005)
+- [translations] Update translations from zanata.
+- [doc] Update module documentation.
+- [module] Fix `module provides` output.
+- [module] Add `module reset` command.
+- [module] Fix module disable command
+- [repo] Improve error message on broken repo (RhBug:1595796)
+- [doc] Enhance a command documentation (RhBug:1361617)
+- [module] Automatically save module persistor in do_transaction().
+- [drpm] Fixed setting deltarpm_percentage=0 to switch drpm off
+- [repo] Split base.download_packages into two functions
+- [output] Use libdnf wrapper for smartcols
+- [conf] Do not traceback on empty option (RhBug:1613577)
+
+* Tue Aug 07 2018 Daniel Mach <dmach@redhat.com> - 3.2.0-1
+- [sack] Use module_platform_id option.
+- [module] Switch module persistor to libdnf implementation.
+- [module] Auto-enable module streams based on installed RPMs.
+- [transaction] Fix: show packages from the current transaction.
+- [conf] Convert any VectorString type to list.
+- [module] Replace 'enabled' config option with 'state'.
+- [install_specs] Do not exclude groups' packages
+- [module] Use module sack filtering from libdnf
+- [module] Many UX fixes.
+
+* Fri Jul 27 2018 Daniel Mach <dmach@redhat.com> - 3.1.0-1
+- [module] Move 'hotfixes' conf option to libdnf and rename it to 'module_hotfixes'.
+- [goal] Exclude @System repo packages from distro_sync.
+- [conf] Setup configuration values using C++ bindings.
+- [module] Drop module lock command.
+- [crypto] Use handle from repo in dnf.crypto.retrieve().
+- [module] Assume a 'default' profile exists for all modules (RhBug:1568165)
+- [base] Introduce easy installation of package, group and module specs.
+
+* Thu Jul 19 2018 Daniel Mach <dmach@redhat.com> - 3.0.4-1
+- [transaction] Fix 'TransactionItem not found for key' error.
+- [module] Allow removing module profile without specifying a stream.
+- [module] Fix 'BaseCli' object has no attribute '_yumdb' error.
+- [callback] Fix TransactionDisplay.PKG_ERASE redirect to a non-existing constant.
+- [spec] Change yum compat package version to 4.0.version.
+- [cache] Clean transaction temp files after successfull transaction
+- [log] Log messages from libdnf logger
+- [transaction] Add states to report rpm transaction progress
+- [transaction] Cache TransactionItem during handling of RPM callback (RhBug:1599597)
+- [systemd] dnf-makecache.timer: move to multi-user to fix loop
+
+* Thu Jul 12 2018 Martin Hatina <mhatina@redhat.com> - 3.0.3-1
+- Bug fix release
+
+* Fri Jun 29 2018 Jaroslav Mracek <jmracek@redhat.com> - 3.0.2-1
+- Update to 3.0.2-1
+
+* Tue Jun 26 2018 Jaroslav Mracek <jmracek@redhat.com> - 3.0.1-1
+- Update to 3.0.1-1
+- Support of MODULES - new DNF command `module`
+- Add attribute dnf.conf.Conf.proxy_auth_method
+- New repoquery option `--depends` and `--whatdepends`
+- Enhanced support of variables
+- Enhanced documentation
+- Resolves: rhbz#1565599
+- Resolves: rhbz#1508839
+- Resolves: rhbz#1506486
+- Resolves: rhbz#1506475
+- Resolves: rhbz#1505577
+- Resolves: rhbz#1505574
+- Resolves: rhbz#1505573
+- Resolves: rhbz#1480481
+- Resolves: rhbz#1496732
+- Resolves: rhbz#1497272
+- Resolves: rhbz#1488100
+- Resolves: rhbz#1488086
+- Resolves: rhbz#1488112
+- Resolves: rhbz#1488105
+- Resolves: rhbz#1488089
+- Resolves: rhbz#1488092
+- Resolves: rhbz#1486839
+- Resolves: rhbz#1486839
+- Resolves: rhbz#1486827
+- Resolves: rhbz#1486816
+- Resolves: rhbz#1565647
+- Resolves: rhbz#1583834
+- Resolves: rhbz#1576921
+- Resolves: rhbz#1270295
+- Resolves: rhbz#1361698
+- Resolves: rhbz#1369847
+- Resolves: rhbz#1368651
+- Resolves: rhbz#1563841
+- Resolves: rhbz#1387622
+- Resolves: rhbz#1575998
+- Resolves: rhbz#1577854
+- Resolves: rhbz#1387622
+- Resolves: rhbz#1542416
+- Resolves: rhbz#1542416
+- Resolves: rhbz#1496153
+- Resolves: rhbz#1568366
+- Resolves: rhbz#1539803
+- Resolves: rhbz#1552576
+- Resolves: rhbz#1545075
+- Resolves: rhbz#1544359
+- Resolves: rhbz#1547672
+- Resolves: rhbz#1537957
+- Resolves: rhbz#1542920
+- Resolves: rhbz#1507129
+- Resolves: rhbz#1512956
+- Resolves: rhbz#1512663
+- Resolves: rhbz#1247083
+- Resolves: rhbz#1247083
+- Resolves: rhbz#1247083
+- Resolves: rhbz#1519325
+- Resolves: rhbz#1492036
+- Resolves: rhbz#1391911
+- Resolves: rhbz#1391911
+- Resolves: rhbz#1479330
+- Resolves: rhbz#1505185
+- Resolves: rhbz#1305232
+
 * Wed Oct 18 2017 Igor Gnatenko <ignatenko@redhat.com> - 2.7.5-1
 - Improve performance for excludes and includes handling (RHBZ #1500361)
 - Fixed problem of handling checksums for local repositories (RHBZ #1502106)

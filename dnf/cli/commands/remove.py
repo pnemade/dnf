@@ -23,7 +23,7 @@ from __future__ import unicode_literals
 from dnf.cli import commands
 from dnf.i18n import _
 from dnf.cli.option_parser import OptionParser
-
+import dnf.base
 import argparse
 import hawkey
 import dnf.exceptions
@@ -122,8 +122,14 @@ class RemoveCommand(commands.Command):
                 msg = _('Not a valid form: %s')
                 logger.warning(msg, self.base.output.term.bold(grp_spec))
         elif self.opts.grp_specs:
+            if dnf.base.WITH_MODULES:
+                module_base = dnf.module.module_base.ModuleBase(self.base)
+                skipped_grps = module_base.remove(self.opts.grp_specs)
+            else:
+                skipped_grps = self.opts.grp_specs
+
             self.base.read_comps(arch_filter=True)
-            if self.base.env_group_remove(self.opts.grp_specs):
+            if self.base.env_group_remove(skipped_grps):
                 done = True
 
         for pkg_spec in self.opts.pkg_specs:

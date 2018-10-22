@@ -20,6 +20,132 @@
 ###################
 
 ===================
+4.0.4 Release Notes
+===================
+
+* Add dnssec extension
+* Set termforce to AUTO to automatically detect if stdout is terminal
+* Repoquery command accepts --changelogs option (RhBug:1483458)
+* Calculate sack version from all installed packages (RhBug:1624291)
+* [module] Allow to enable module dependencies (RhBug:1622566)
+
+Bugs fixed in 4.0.4:
+
+* :rhbug:`1508649`
+* :rhbug:`1590690`
+* :rhbug:`1624291`
+* :rhbug:`1631217`
+* :rhbug:`1489308`
+* :rhbug:`1625879`
+* :rhbug:`1483458`
+* :rhbug:`1497171`
+* :rhbug:`1620242`
+
+===================
+3.6.1 Release Notes
+===================
+
+* [module] Improved module commands list, info
+* [module] Reports error from module solver
+
+Bugs fixed in 3.6.1:
+
+* :rhbug:`1626011`
+* :rhbug:`1631458`
+* :rhbug:`1305340`
+* :rhbug:`1305340`
+* :rhbug:`1623866`
+* :rhbug:`1600444`
+* :rhbug:`1628056`
+
+===================
+3.5.1 Release Notes
+===================
+
+* [module] Fixed list and info subcommands
+
+===================
+3.5.0 Release Notes
+===================
+
+* New implementation of modularity
+
+===================
+3.0.2 Release Notes
+===================
+
+* Add limited compatibility with dnf-2.0 (constants)
+
+===================
+3.0.1 Release Notes
+===================
+
+* Support of MODULES - new DNF command `module`
+* :attr:`dnf.conf.Conf.proxy_auth_method`
+* New repoquery option `--depends` and `--whatdepends`
+* Enhanced support of variables
+* Enhanced documentation
+
+Bugs fixed in 3.0.1:
+
+* :rhbug:`1565599`
+* :rhbug:`1508839`
+* :rhbug:`1506486`
+* :rhbug:`1506475`
+* :rhbug:`1505577`
+* :rhbug:`1505574`
+* :rhbug:`1505573`
+* :rhbug:`1480481`
+* :rhbug:`1496732`
+* :rhbug:`1497272`
+* :rhbug:`1488100`
+* :rhbug:`1488086`
+* :rhbug:`1488112`
+* :rhbug:`1488105`
+* :rhbug:`1488089`
+* :rhbug:`1488092`
+* :rhbug:`1486839`
+* :rhbug:`1486839`
+* :rhbug:`1486827`
+* :rhbug:`1486816`
+* :rhbug:`1565647`
+* :rhbug:`1583834`
+* :rhbug:`1576921`
+* :rhbug:`1270295`
+* :rhbug:`1361698`
+* :rhbug:`1369847`
+* :rhbug:`1368651`
+* :rhbug:`1563841`
+* :rhbug:`1387622`
+* :rhbug:`1575998`
+* :rhbug:`1577854`
+* :rhbug:`1387622`
+* :rhbug:`1542416`
+* :rhbug:`1542416`
+* :rhbug:`1496153`
+* :rhbug:`1568366`
+* :rhbug:`1539803`
+* :rhbug:`1552576`
+* :rhbug:`1545075`
+* :rhbug:`1544359`
+* :rhbug:`1547672`
+* :rhbug:`1537957`
+* :rhbug:`1542920`
+* :rhbug:`1507129`
+* :rhbug:`1512956`
+* :rhbug:`1512663`
+* :rhbug:`1247083`
+* :rhbug:`1247083`
+* :rhbug:`1247083`
+* :rhbug:`1519325`
+* :rhbug:`1492036`
+* :rhbug:`1391911`
+* :rhbug:`1391911`
+* :rhbug:`1479330`
+* :rhbug:`1505185`
+* :rhbug:`1305232`
+
+===================
 2.7.5 Release Notes
 ===================
 
@@ -960,7 +1086,7 @@ Bugs fixed in 0.6.1:
 
 0.6.0 marks a new minor version of DNF and the first release to support advisories listing with the :ref:`udpateinfo command <updateinfo_command-label>`.
 
-Support for the :ref:`include configuration directive <include-label>` has been added. Its functionality reflects Yum's ``includepkgs`` but it has been renamed to make it consistent with the ``exclude`` setting.
+Support for the :ref:`include configuration directive <include-label>` has been added. Its functionality reflects YUM's ``includepkgs`` but it has been renamed to make it consistent with the ``exclude`` setting.
 
 Group operations now produce a list of proposed marking changes to group objects and the user is given a chance to accept or reject them just like with an ordinary package transaction.
 
@@ -1007,7 +1133,7 @@ Bugs fixed in 0.5.5:
 
 Several encodings bugs were fixed in this release, along with some packaging issues and updates to :doc:`conf_ref`.
 
-Repository :ref:`priority <repo_priority-label>` configuration setting has been added, providing similar functionality to Yum Utils' Priorities plugin.
+Repository :ref:`priority <repo_priority-label>` configuration setting has been added, providing similar functionality to YUM Utils' Priorities plugin.
 
 Bugs fixed in 0.5.4:
 
@@ -1027,7 +1153,7 @@ Bugs fixed in 0.5.4:
 0.5.3 Release Notes
 ===================
 
-A set of bugfixes related to i18n and Unicode handling. There is a ``-4/-6`` switch and a corresponding :ref:`ip_resolve <ip-resolve-label>` configuration option (both known from Yum) to force DNS resolving of hosts to IPv4 or IPv6 addresses.
+A set of bugfixes related to i18n and Unicode handling. There is a ``-4/-6`` switch and a corresponding :ref:`ip_resolve <ip-resolve-label>` configuration option (both known from YUM) to force DNS resolving of hosts to IPv4 or IPv6 addresses.
 
 0.5.3 comes with several extensions and clarifications in the API: notably :class:`~.dnf.transaction.Transaction` is introspectible now, :class:`Query.filter <dnf.query.Query.filter>` is more useful with new types of arguments and we've hopefully shed more light on how a client is expected to setup the configuration :attr:`~dnf.conf.Conf.substitutions`.
 
@@ -1110,7 +1236,7 @@ Bugs fixed in 0.5.1:
 0.5.0 Release Notes
 ===================
 
-The biggest improvement in 0.5.0 is complete support for groups `and environments <https://bugzilla.redhat.com/show_bug.cgi?id=1063666>`_, including internal database of installed groups independent of the actual packages (concept known as groups-as-objects from Yum). Upgrading groups is supported now with ``group upgrade`` too.
+The biggest improvement in 0.5.0 is complete support for groups `and environments <https://bugzilla.redhat.com/show_bug.cgi?id=1063666>`_, including internal database of installed groups independent of the actual packages (concept known as groups-as-objects from YUM). Upgrading groups is supported now with ``group upgrade`` too.
 
 To force refreshing of metadata before an operation (even if the data is not expired yet), `the refresh option has been added <https://bugzilla.redhat.com/show_bug.cgi?id=1064226>`_.
 
@@ -1187,7 +1313,7 @@ Bugs fixed in 0.4.19:
 
 Support for ``dnf distro-sync <spec>`` finally arrives in this version.
 
-DNF has moved to handling groups as objects,  tagged installed/uninstalled independently from the actual installed packages. This has been in Yum as the ``group_command=objects`` setting and the default in recent Fedora releases. There are API extensions related to this change as well as two new CLI commands: ``group mark install`` and ``group mark remove``.
+DNF has moved to handling groups as objects,  tagged installed/uninstalled independently from the actual installed packages. This has been in YUM as the ``group_command=objects`` setting and the default in recent Fedora releases. There are API extensions related to this change as well as two new CLI commands: ``group mark install`` and ``group mark remove``.
 
 API items deprecated in 0.4.8 and 0.4.9 have been dropped in 0.4.18, in accordance with our :ref:`deprecating-label`.
 
@@ -1353,7 +1479,7 @@ Bugs fixed in 0.4.11:
 
 ``dnf install`` now accepts group specifications via the ``@`` character.
 
-Support for the ``--setopt`` option has been readded from Yum.
+Support for the ``--setopt`` option has been readded from YUM.
 
 API additions in 0.4.10:
 
@@ -1386,7 +1512,7 @@ Bugs fixed in 0.4.10:
 0.4.9 Release Notes
 ===================
 
-Several Yum features are revived in this release. ``dnf history rollback`` now works again. The ``history userinstalled`` has been added, it displays a list of ackages that the user manually selected for installation on an installed system and does not include those packages that got installed as dependencies.
+Several YUM features are revived in this release. ``dnf history rollback`` now works again. The ``history userinstalled`` has been added, it displays a list of ackages that the user manually selected for installation on an installed system and does not include those packages that got installed as dependencies.
 
 We're happy to announce that the API in 0.4.9 has been extended to finally support plugins. There is a limited set of plugin hooks now, we will carefully add new ones in the following releases. New marking operations have ben added to the API and also some configuration options.
 
@@ -1464,7 +1590,7 @@ We start to publish the :doc:`api` with this release. It is largely
 incomprehensive at the moment, yet outlines the shape of the documentation and
 the process the project is going to use to maintain it.
 
-There are two Yum configuration options that were dropped: :ref:`group_package_types <group_package_types_dropped>` and :ref:`upgrade_requirements_on_install <upgrade_requirements_on_install_dropped>`.
+There are two YUM configuration options that were dropped: :ref:`group_package_types <group_package_types_dropped>` and :ref:`upgrade_requirements_on_install <upgrade_requirements_on_install_dropped>`.
 
 Bugs fixed in 0.4.7:
 
@@ -1742,7 +1868,7 @@ The following bugfixes are included in 0.3.5:
 0.3.4 Release Notes
 ===================
 
-0.3.4 is the first DNF version since the fork from Yum that is able to
+0.3.4 is the first DNF version since the fork from YUM that is able to
 manipulate the comps data. In practice, ``dnf group install <group name>`` works
 again. No other group commands are supported yet.
 
@@ -1750,7 +1876,7 @@ Support for ``librepo-0.0.4`` and related cleanups and extensions this new
 version allows are included (see the buglist below)
 
 This version has also improved reporting of obsoleted packages in the CLI (the
-Yum-style "replacing <package-nevra>" appears in the textual transaction
+YUM-style "replacing <package-nevra>" appears in the textual transaction
 overview).
 
 The following bugfixes are included in 0.3.4:
@@ -1765,7 +1891,7 @@ The following bugfixes are included in 0.3.4:
 
 The improvements in 0.3.3 are only API changes to the logging. There is a new
 module ``dnf.logging`` that defines simplified logging structure compared to
-Yum, with fewer logging levels and `simpler usage for the developers
+YUM, with fewer logging levels and `simpler usage for the developers
 <https://github.com/rpm-software-management/dnf/wiki/Hacking#logging>`_. The RPM transaction logs are
 no longer in ``/var/log/dnf.transaction.log`` but in ``/var/log/dnf.rpm.log`` by
 default.
@@ -1785,7 +1911,7 @@ The major improvement in this version is in speeding up syncing of repositories
 using metalink by looking at the repomd.xml checksums. This effectively lets DNF
 cheaply refresh expired repositories in cases where the original has not
 changed\: for instance the main Fedora repository is refreshed with one 30 kB
-HTTP download. This functionality is present in the current Yum but hasn't
+HTTP download. This functionality is present in the current YUM but hasn't
 worked in DNF since 3.0.0.
 
 Otherwise this is mainly a release fixing bugs and tracebacks. The following

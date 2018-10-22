@@ -32,7 +32,6 @@ import dnf.exceptions
 import dnf.i18n
 import errno
 import glob
-import gpg
 import gzip
 import hashlib
 import io
@@ -278,7 +277,7 @@ def import_key_to_pubring(rawkey, keyid, gpgdir=None, make_ro_copy=True):
     if not os.path.exists(gpgdir):
         os.makedirs(gpgdir)
 
-    with dnf.crypto.pubring_dir(gpgdir), gpg.Context() as ctx:
+    with dnf.crypto.pubring_dir(gpgdir), dnf.crypto.Context() as ctx:
         # import the key
         with open(os.path.join(gpgdir, 'gpg.conf'), 'wb') as fp:
             fp.write(b'')
@@ -396,8 +395,8 @@ def stat_f(filename, ignore_EACCES=False):
         raise
 
 def _getloginuid():
-    """ Get the audit-uid/login-uid, if available. None is returned if there
-        was a problem. Note that no caching is done here. """
+    """ Get the audit-uid/login-uid, if available. os.getuid() is returned
+        instead if there was a problem. Note that no caching is done here. """
     #  We might normally call audit.audit_getloginuid(), except that requires
     # importing all of the audit module. And it doesn't work anyway: BZ 518721
     try:
@@ -405,12 +404,13 @@ def _getloginuid():
             data = fo.read()
             return int(data)
     except (IOError, ValueError):
-        return None
+        return os.getuid()
 
 _cached_getloginuid = None
 def getloginuid():
-    """ Get the audit-uid/login-uid, if available. None is returned if there
-        was a problem. The value is cached, so you don't have to save it. """
+    """ Get the audit-uid/login-uid, if available. os.getuid() is returned
+        instead if there was a problem. The value is cached, so you don't
+        have to save it. """
     global _cached_getloginuid
     if _cached_getloginuid is None:
         _cached_getloginuid = _getloginuid()

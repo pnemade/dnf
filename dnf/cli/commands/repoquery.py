@@ -19,27 +19,29 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import unicode_literals
-from datetime import datetime
 from dnf.i18n import _
 from dnf.cli import commands
 from dnf.cli.option_parser import OptionParser
 
 import argparse
+import datetime
+import logging
+import re
+import sys
+
 import dnf
 import dnf.cli
 import dnf.exceptions
 import dnf.subject
+import dnf.util
 import hawkey
-import logging
-import re
-import sys
 
 logger = logging.getLogger('dnf')
 
 
 QFORMAT_DEFAULT = '%{name}-%{epoch}:%{version}-%{release}.%{arch}'
 # matches %[-][dd]{attr}
-QFORMAT_MATCH = re.compile(r'%([-\d]*?){([:\.\w]*?)}')
+QFORMAT_MATCH = re.compile(r'%(-?\d*?){([:.\w]+?)}')
 
 QUERY_TAGS = """
 name, arch, epoch, version, release, reponame (repoid), evr,
@@ -75,11 +77,19 @@ def rpm2py_format(queryformat):
             fill = ':' + fill
         return '{0.' + key.lower() + fill + "}"
 
-    queryformat = queryformat.replace("\\n", "\n")
-    queryformat = queryformat.replace("\\t", "\t")
+    def brackets(txt):
+        return txt.replace('{', '{{').replace('}', '}}')
+
+    queryformat = queryformat.replace("\\n", "\n").replace("\\t", "\t")
     for key, value in OPTS_MAPPING.items():
         queryformat = queryformat.replace(key, value)
-    fmt = re.sub(QFORMAT_MATCH, fmt_repl, queryformat)
+    fmt = ""
+    spos = 0
+    for item in QFORMAT_MATCH.finditer(queryformat):
+        fmt += brackets(queryformat[spos:item.start()])
+        fmt += fmt_repl(item)
+        spos = item.end()
+    fmt += brackets(queryformat[spos:])
     return fmt
 
 
@@ -167,6 +177,9 @@ class RepoQueryCommand(commands.Command):
         outform.add_argument('-s', "--source", dest='querysourcerpm',
                              default=False, action='store_true',
                              help=_('show package source RPM name'))
+        outform.add_argument('--changelogs', dest='querychangelogs',
+                             default=False, action='store_true',
+                             help=_('show changelogs of the package'))
         outform.add_argument('--qf', "--queryformat", dest='queryformat',
                              default=QFORMAT_DEFAULT,
                              help=_('format for displaying found packages'))
@@ -244,6 +257,8 @@ class RepoQueryCommand(commands.Command):
             self.cli.redirect_logger(stdout=logging.WARNING, stderr=logging.INFO)
 
     def configure(self):
+        if not self.opts.verbose and not self.opts.quiet:
+            self.cli.redirect_repo_progress()
         demands = self.cli.demands
 
         if self.opts.obsoletes:
@@ -255,12 +270,18 @@ class RepoQueryCommand(commands.Command):
         if self.opts.querytags:
             return
 
+        if self.opts.resolve and not self.opts.packageatr:
+            raise dnf.cli.CliError(
+                _("Option '--resolve' has to be used together with one of the "
+                  "'--conflicts', '--depends', '--enhances', '--provides', '--recommends', "
+                  "'--requires', '--requires-pre', '--suggests' or '--supplements' options"))
+
         if self.opts.recursive:
             if self.opts.exactdeps:
                 self.cli._option_conflict("--recursive", "--exactdeps")
             if not any([self.opts.whatrequires,
                         (self.opts.packageatr == "requires" and self.opts.resolve)]):
-                raise dnf.exceptions.Error(
+                raise dnf.cli.CliError(
                     _("Option '--recursive' has to be used with '--whatrequires <REQ>' "
                       "(optionaly with '--alldeps', but not with '--exactdeps'), or with "
                       "'--requires <REQ> --resolve'"))
@@ -274,7 +295,19 @@ class RepoQueryCommand(commands.Command):
 
         demands.sack_activation = True
 
+        if self.opts.querychangelogs:
+            demands.changelogs = True
+
     def build_format_fn(self, opts, pkg):
+        if opts.querychangelogs:
+            out = []
+            out.append('Changelog for %s' % str(pkg))
+            for chlog in pkg.changelogs:
+                dt = chlog['timestamp']
+                out.append('* %s %s\n%s\n' % (dt.strftime("%a %b %d %Y"),
+                                              dnf.i18n.ucd(chlog['author']),
+                                              dnf.i18n.ucd(chlog['text'])))
+            return '\n'.join(out)
         try:
             po = PackageWrapper(pkg)
             if opts.queryinfo:
@@ -297,15 +330,22 @@ class RepoQueryCommand(commands.Command):
                                   all_deps=False):
         done = done if done else self.base.sack.query().filterm(empty=True)
         t = self.base.sack.query().filterm(empty=True)
+        set_requires = set()
+        set_all_deps = set()
+
         for pkg in query_select.run():
             pkg_provides = pkg.provides
-            t = t.union(query_in.filter(requires=pkg.provides))
-            t = t.union(query_in.filter(requires=pkg.files))
+            set_requires.update(pkg_provides)
+            set_requires.update(pkg.files)
             if all_deps:
-                t = t.union(query_in.filter(recommends=pkg_provides))
-                t = t.union(query_in.filter(enhances=pkg_provides))
-                t = t.union(query_in.filter(supplements=pkg_provides))
-                t = t.union(query_in.filter(suggests=pkg_provides))
+                set_all_deps.update(pkg_provides)
+
+        t = t.union(query_in.filter(requires=set_requires))
+        if set_all_deps:
+            t = t.union(query_in.filter(recommends=set_all_deps))
+            t = t.union(query_in.filter(enhances=set_all_deps))
+            t = t.union(query_in.filter(supplements=set_all_deps))
+            t = t.union(query_in.filter(suggests=set_all_deps))
         if recursive:
             query_select = t.difference(done)
             if query_select:
@@ -388,8 +428,7 @@ class RepoQueryCommand(commands.Command):
             goal = dnf.goal.Goal(rpmdb)
             solved = goal.run(verify=True)
             if not solved:
-                for msg in goal.problems:
-                    print(msg)
+                print(dnf.util._format_resolve_problems(goal.problem_rules()))
             return
         elif not self.opts.list:
             # do not show packages from @System repo
@@ -455,26 +494,42 @@ class RepoQueryCommand(commands.Command):
                     pkg_list += tmp_query.run()
             q = self.base.sack.query().filterm(pkg=pkg_list)
         if self.opts.tree:
-            if not self.opts.whatrequires and not self.opts.packageatr:
+            if not self.opts.whatrequires and self.opts.packageatr not in (
+                    'conflicts', 'enhances', 'obsoletes', 'provides', 'recommends',
+                    'requires', 'suggests', 'supplements'):
                 raise dnf.exceptions.Error(
-                    _("No switch specified\nusage: dnf repoquery [--whatrequires|"
-                        "--requires|--conflicts|--obsoletes|--enhances|--suggest|"
-                        "--provides|--supplements|--recommends] [key] [--tree]\n\n"
+                    _("No valid switch specified\nusage: dnf repoquery [--conflicts|"
+                        "--enhances|--obsoletes|--provides|--recommends|--requires|"
+                        "--suggest|--supplements|--whatrequires] [key] [--tree]\n\n"
                         "description:\n  For the given packages print a tree of the packages."))
             self.tree_seed(q, orquery, self.opts)
             return
 
         pkgs = set()
         if self.opts.packageatr:
+            rels = set()
             for pkg in q.run():
-                if self.opts.list != 'userinstalled' or self.base._is_userinstalled(pkg):
+                if self.opts.list != 'userinstalled' or self.base.history.user_installed(pkg):
                     if self.opts.packageatr == 'depends':
-                        rels = pkg.requires + pkg.enhances + pkg.suggests + pkg.supplements + \
-                               pkg.recommends
+                        rels.update(pkg.requires + pkg.enhances + pkg.suggests +
+                                    pkg.supplements + pkg.recommends)
                     else:
-                        rels = getattr(pkg, OPTS_MAPPING[self.opts.packageatr])
-                    for rel in rels:
-                        pkgs.add(str(rel))
+                        rels.update(getattr(pkg, OPTS_MAPPING[self.opts.packageatr]))
+            if self.opts.resolve:
+                # find the providing packages and show them
+                if self.opts.list == "installed":
+                    query = self.filter_repo_arch(self.opts, self.base.sack.query())
+                else:
+                    query = self.filter_repo_arch(self.opts, self.base.sack.query().available())
+                providers = query.filter(provides=rels)
+                if self.opts.recursive:
+                    providers = providers.union(
+                        self._get_recursive_providers_query(query, providers))
+                pkgs = set()
+                for pkg in providers.latest().run():
+                    pkgs.add(self.build_format_fn(self.opts, pkg))
+            else:
+                pkgs.update(str(rel) for rel in rels)
         elif self.opts.location:
             for pkg in q.run():
                 location = pkg.remote_location()
@@ -483,7 +538,7 @@ class RepoQueryCommand(commands.Command):
         elif self.opts.deplist:
             pkgs = []
             for pkg in sorted(set(q.run())):
-                if self.opts.list != 'userinstalled' or self.base._is_userinstalled(pkg):
+                if self.opts.list != 'userinstalled' or self.base.history.user_installed(pkg):
                     deplist_output = []
                     deplist_output.append('package: ' + str(pkg))
                     for req in sorted([str(req) for req in pkg.requires]):
@@ -497,7 +552,8 @@ class RepoQueryCommand(commands.Command):
                         for provider in query.run():
                             deplist_output.append('   provider: ' + str(provider))
                     pkgs.append('\n'.join(deplist_output))
-            print('\n\n'.join(pkgs))
+            if pkgs:
+                print('\n\n'.join(pkgs))
             return
         elif self.opts.groupmember:
             self._group_member_report(q)
@@ -505,26 +561,14 @@ class RepoQueryCommand(commands.Command):
 
         else:
             for pkg in q.run():
-                if self.opts.list != 'userinstalled' or self.base._is_userinstalled(pkg):
+                if self.opts.list != 'userinstalled' or self.base.history.user_installed(pkg):
                     pkgs.add(self.build_format_fn(self.opts, pkg))
 
-        if self.opts.resolve:
-            # find the providing packages and show them
-            if self.opts.list == "installed":
-                query = self.filter_repo_arch(self.opts, self.base.sack.query())
+        if pkgs:
+            if self.opts.queryinfo:
+                print("\n\n".join(sorted(pkgs)))
             else:
-                query = self.filter_repo_arch(self.opts, self.base.sack.query().available())
-            providers = query.filter(provides__glob=list(pkgs))
-            if self.opts.recursive:
-                providers = providers.union(self._get_recursive_providers_query(query, providers))
-            pkgs = set()
-            for pkg in providers.latest().run():
-                pkgs.add(self.build_format_fn(self.opts, pkg))
-
-        if self.opts.queryinfo:
-            print("\n\n".join(sorted(pkgs)))
-        else:
-            print("\n".join(sorted(pkgs)))
+                print("\n".join(sorted(pkgs)))
 
     def _group_member_report(self, query):
         self.base.read_comps(arch_filter=True)
@@ -548,7 +592,8 @@ class RepoQueryCommand(commands.Command):
             output.append(
                 '\n'.join(sorted(package_list) + sorted(['  @' + id for id in key.split('$')])))
         output.append('\n'.join(sorted(pkg_not_in_group)))
-        print('\n'.join(output))
+        if output:
+            print('\n'.join(output))
 
     def grow_tree(self, level, pkg, opts):
         pkg_string = self.build_format_fn(opts, pkg)
@@ -602,7 +647,7 @@ class PackageWrapper(object):
     @staticmethod
     def _get_timestamp(timestamp):
         if timestamp > 0:
-            dt = datetime.utcfromtimestamp(timestamp)
+            dt = datetime.datetime.utcfromtimestamp(timestamp)
             return dt.strftime("%Y-%m-%d %H:%M")
         else:
             return ''

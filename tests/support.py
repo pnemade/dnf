@@ -24,12 +24,13 @@ import contextlib
 import logging
 import os
 import re
+import sys
 import unittest
 from functools import reduce
 
 import hawkey
 import hawkey.test
-from hawkey import SwdbReason, SwdbPkgData
+import libdnf.transaction
 
 import dnf
 import dnf.conf
@@ -169,17 +170,6 @@ def command_run(cmd, args):
     command_configure(cmd, args)
     return cmd.run()
 
-
-def mockSwdbPkg(history, pkg, state="Installed", repo="unknown", reason=SwdbReason.USER):
-    """ Add DnfPackage into database """
-    hpkg = history.ipkg_to_pkg(pkg)
-    pid = history.add_package(hpkg)
-    pkg_data = SwdbPkgData()
-    history.swdb.trans_data_beg(0, pid, reason, state, False)
-    history.update_package_data(pid, 0, pkg_data)
-    history.set_repo(hpkg, repo)
-
-
 class Base(dnf.Base):
     def __init__(self, *args, **kwargs):
         with mock.patch('dnf.rpm.detect_releasever', return_value=69):
@@ -188,30 +178,31 @@ class Base(dnf.Base):
 # mock objects
 
 
-def mock_comps(history, seed_persistor):
+def mock_comps(history, seed_history):
     comps = dnf.comps.Comps()
     comps._add_from_xml_filename(COMPS_PATH)
 
-    persistor = history.group
-    if seed_persistor:
+    if seed_history:
         name = 'Peppers'
         pkg_types = dnf.comps.MANDATORY
-        p_pep = persistor.new_group(name, name, name, False, pkg_types)
-        persistor.add_group(p_pep)
-        p_pep.add_package(['hole', 'lotus'])
+        swdb_group = history.group.new(name, name, name, pkg_types)
+        for pkg_name in ['hole', 'lotus']:
+            swdb_group.addPackage(pkg_name, True, dnf.comps.MANDATORY)
+        history.group.install(swdb_group)
 
         name = 'somerset'
         pkg_types = dnf.comps.MANDATORY
-        p_som = persistor.new_group(name, name, name, False, pkg_types)
-        persistor.add_group(p_som)
-        p_som.add_package(['pepper', 'trampoline', 'lotus'])
+        swdb_group = history.group.new(name, name, name, pkg_types)
+        for pkg_name in ['pepper', 'trampoline', 'lotus']:
+            swdb_group.addPackage(pkg_name, True, dnf.comps.MANDATORY)
+        history.group.install(swdb_group)
 
         name = 'sugar-desktop-environment'
-        grp_types = dnf.comps.ALL_TYPES
         pkg_types = dnf.comps.ALL_TYPES
-        p_env = persistor.new_env(name, name, name, pkg_types, grp_types)
-        persistor.add_env(p_env)
-        p_env.add_group(['Peppers', 'somerset'])
+        swdb_env = history.env.new(name, name, name, pkg_types)
+        for group_id in ['Peppers', 'somerset']:
+            swdb_env.addGroup(group_id, True, dnf.comps.MANDATORY)
+        history.env.install(swdb_env)
     return comps
 
 
@@ -270,7 +261,7 @@ class _BaseStubMixin(object):
         return self.init_sack()
 
     def _build_comps_solver(self):
-        return dnf.comps.Solver(self.history.group, self._comps,
+        return dnf.comps.Solver(self.history, self._comps,
                                 REASONS.get)
 
     def _activate_persistor(self):
@@ -300,8 +291,8 @@ class _BaseStubMixin(object):
         return mock.Mock(base=self, log_stream=stream, logger=logger,
                          demands=dnf.cli.demand.DemandSheet())
 
-    def read_mock_comps(self, seed_persistor=True):
-        self._comps = mock_comps(self.history, seed_persistor)
+    def read_mock_comps(self, seed_history=True):
+        self._comps = mock_comps(self.history, seed_history)
         return self._comps
 
     def read_all_repos(self, opts=None):
@@ -339,6 +330,9 @@ class CliStub(object):
     def redirect_logger(self, stdout=None, stderr=None):
         return
 
+    def redirect_repo_progress(self, fo=sys.stderr):
+        return
+
     def register_command(self, command):
         """Register given *command*."""
         self.cli_commands.update({alias: command for alias in command.aliases})
@@ -363,8 +357,12 @@ class MockPackage(object):
         self.reponame = None if repo is None else repo.id
         self.str = nevra
         self.buildtime = 0
-        (self.name, self.epoch, self.version, self.release, self.arch) = \
-            hawkey.split_nevra(nevra)
+        nevra = hawkey.split_nevra(nevra)
+        self.name = nevra.name
+        self.epoch = nevra.epoch
+        self.version = nevra.version
+        self.release = nevra.release
+        self.arch = nevra.arch
         self.evr = '%(epoch)d:%(version)s-%(release)s' % vars(self)
         self.pkgtup = (self.name, self.arch, str(self.epoch), self.version,
                        self.release)
@@ -484,11 +482,11 @@ class FakeConf(dnf.conf.Conf):
             ('history_record', False),
             ('installonly_limit', 0),
             ('installonlypkgs', ['kernel']),
-            ('installroot', '/'),
+            ('installroot', '/tmp/swdb/'),
             ('ip_resolve', None),
             ('multilib_policy', 'best'),
             ('obsoletes', True),
-            ('persistdir', '/tmp/swdb/'),
+            ('persistdir', dnf.const.PERSISTDIR),
             ('transformdb', False),
             ('protected_packages', ["dnf"]),
             ('plugins', False),
@@ -496,9 +494,16 @@ class FakeConf(dnf.conf.Conf):
             ('tsflags', []),
             ('strict', True),
         ] + list(kwargs.items())
-
         for optname, val in options:
             setattr(self, optname, dnf.conf.Value(val, dnf.conf.PRIO_DEFAULT))
+
+        # TODO: consolidate with dnf.cli.Cli._read_conf_file()
+        for opt in ('cachedir', 'logdir', 'persistdir'):
+            # don't prepend installroot if option was specified by user
+            # TODO: is this desired? ^^^ (tests won't pass without it ATM)
+            if opt in kwargs:
+                continue
+            self.prepend_installroot(opt)
 
     @property
     def releasever(self):
@@ -568,6 +573,7 @@ class TestCase(unittest.TestCase):
 
     if not dnf.pycomp.PY3:
         assertCountEqual = unittest.TestCase.assertItemsEqual
+        assertRegex = unittest.TestCase.assertRegexpMatches
 
     def assertEmpty(self, collection):
         return self.assertEqual(len(collection), 0)
@@ -615,13 +621,8 @@ class DnfBaseTestCase(TestCase):
     # "stub": self.cli = StubCli(self.base)
     CLI = None
 
-    # read test comps data
     COMPS = False
-
-    # pass as seed_persistor option to reading test comps data
-    COMPS_SEED_PERSISTOR = False
-
-    # initialize self.solver = dnf.comps.Solver()
+    COMPS_SEED_HISTORY = False
     COMPS_SOLVER = False
 
     def setUp(self):
@@ -642,16 +643,16 @@ class DnfBaseTestCase(TestCase):
             raise ValueError("Invalid CLI value: {}".format(self.CLI))
 
         if self.COMPS:
-            self.base.read_mock_comps(seed_persistor=self.COMPS_SEED_PERSISTOR)
+            self.base.read_mock_comps(seed_history=self.COMPS_SEED_HISTORY)
 
         if self.INIT_SACK:
             self.base.init_sack()
 
         if self.INIT_TRANSACTION:
-            self.base._transaction = dnf.transaction.Transaction()
+            self.base._transaction = self.base.history.rpm
 
         if self.COMPS_SOLVER:
-            self.solver = dnf.comps.Solver(self.persistor, self.comps, REASONS.get)
+            self.solver = dnf.comps.Solver(self.history, self.comps, REASONS.get)
         else:
             self.solver = None
 
@@ -671,12 +672,23 @@ class DnfBaseTestCase(TestCase):
         return self.base.history
 
     @property
-    def persistor(self):
-        return self.base.history.group
-
-    @property
     def sack(self):
         return self.base.sack
+
+    def _swdb_begin(self, tsis=None):
+        # history.beg() replaces persistor.commit()
+        tsis = tsis or []
+        self.history.beg("", [], tsis)
+
+    def _swdb_end(self, tsis=None):
+        for tsi in self.history._swdb.getItems():
+            if tsi.getState() == libdnf.transaction.TransactionItemState_UNKNOWN:
+                tsi.setState(libdnf.transaction.TransactionItemState_DONE)
+        self.history.end("")
+
+    def _swdb_commit(self, tsis=None):
+        self._swdb_begin(tsis)
+        self._swdb_end()
 
 
 class ResultTestCase(DnfBaseTestCase):

@@ -20,6 +20,7 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
+
 from dnf.i18n import ucd, _
 
 import dnf.callback
@@ -32,11 +33,11 @@ import dnf.logging
 import dnf.pycomp
 import dnf.util
 import dnf.yum.misc
+import libdnf.repo
 import functools
 import hashlib
 import hawkey
 import logging
-import librepo
 import operator
 import os
 import re
@@ -46,11 +47,8 @@ import sys
 import time
 import traceback
 
-_METADATA_RELATIVE_DIR = "repodata"
 _PACKAGES_RELATIVE_DIR = "packages"
-_METALINK_FILENAME = "metalink.xml"
 _MIRRORLIST_FILENAME = "mirrorlist"
-_RECOGNIZED_CHKSUMS = ['sha512', 'sha256']
 # Chars allowed in a repo ID
 _REPOID_CHARS = string.ascii_letters + string.digits + '-_.:'
 # Regex pattern that matches a repo cachedir and captures the repo ID
@@ -73,28 +71,8 @@ logger = logging.getLogger("dnf")
 def repo_id_invalid(repo_id):
     # :api
     """Return index of an invalid character in the repo ID (if present)."""
-    invalids = (i for i, c in enumerate(repo_id) if c not in _REPOID_CHARS)
-    return dnf.util.first(invalids)
-
-
-def _user_pass_str(user, password):
-    if user is None:
-        return None
-    user = dnf.pycomp.urllib_quote(user)
-    password = '' if password is None else dnf.pycomp.urllib_quote(password)
-    return '%s:%s' % (user, password)
-
-
-def _priv_metalink_path(dirname):
-    return os.path.join(dirname, _METALINK_FILENAME)
-
-
-def _priv_mirrorlist_path(dirname):
-    return os.path.join(dirname, _MIRRORLIST_FILENAME)
-
-
-def _subst2tuples(subst_dct):
-    return [(k, v) for (k, v) in subst_dct.items()]
+    first_invalid = libdnf.repo.Repo.verifyId(repo_id)
+    return None if first_invalid < 0 else first_invalid
 
 
 def _pkg2payload(pkg, progress, *factories):
@@ -115,23 +93,24 @@ def _download_payloads(payloads, drpm):
                for pload in sorted(payloads, key=_download_sort_key)]
     errs = _DownloadErrors()
     try:
-        librepo.download_packages(targets, failfast=True)
-    except librepo.LibrepoException as e:
-        errs._fatal = e.args[1] or '<unspecified librepo error>'
+        libdnf.repo.PackageTarget.downloadPackages(libdnf.repo.VectorPPackageTarget(targets), True)
+    except RuntimeError as e:
+        errs._fatal = str(e)
     drpm.wait()
 
     # process downloading errors
     errs._recoverable = drpm.err.copy()
     for tgt in targets:
-        err = tgt.err
+        err = tgt.getErr()
         if err is None or err.startswith('Not finished'):
             continue
-        payload = tgt.cbdata
+        callbacks = tgt.getCallbacks()
+        payload = callbacks.package_pload
         pkg = payload.pkg
         if err == _('Already downloaded'):
             errs._skipped.add(pkg)
             continue
-        pkg.repo._md_expire_cache()
+        pkg.repo._repo.expire()
         errs._irrecoverable[pkg] = [err]
 
     return errs
@@ -186,141 +165,47 @@ class _DetailedLibrepoError(Exception):
         self.source_url = source_url
 
 
-class _Handle(librepo.Handle):
-    def __init__(self, gpgcheck, max_mirror_tries, max_parallel_downloads=None):
-        super(_Handle, self).__init__()
-        self.gpgcheck = gpgcheck
-        self.maxmirrortries = max_mirror_tries
-        self.interruptible = True
-        self.repotype = librepo.LR_YUMREPO
-        self.useragent = dnf.const.USER_AGENT
-        self.maxparalleldownloads = max_parallel_downloads
-        self.yumdlist = [
-            "primary", "filelists", "prestodelta", "group_gz", "updateinfo"]
-        self.yumslist = [('group_gz', 'group')]
-
-    def __str__(self):
-        return '_Handle: metalnk: %s, mlist: %s, urls %s.' % \
-            (self.metalinkurl, self.mirrorlisturl, self.urls)
-
-    @classmethod
-    def _new_local(cls, subst_dct, gpgcheck, max_mirror_tries, cachedir):
-        h = cls(gpgcheck, max_mirror_tries)
-        h.varsub = _subst2tuples(subst_dct)
-        h.destdir = cachedir
-        h.urls = [cachedir]
-        h.local = True
-        return h
-
-    @property
-    def _metadata_dir(self):
-        return os.path.join(self.destdir, _METADATA_RELATIVE_DIR)
-
-    @property
-    def _metalink_path(self):
-        return _priv_metalink_path(self.destdir)
-
-    @property
-    def _mirrorlist_path(self):
-        return _priv_mirrorlist_path(self.destdir)
-
-    def _perform(self, result=None):
-        try:
-            return super(_Handle, self).perform(result)
-        except librepo.LibrepoException as exc:
-            source = self.metalinkurl or self.mirrorlisturl or \
-                     ', '.join(self.urls)
-            raise _DetailedLibrepoError(exc, source)
-
-
 class _NullKeyImport(dnf.callback.KeyImport):
-    def _confirm(self, _keyinfo):
+    def _confirm(self, id, userid, fingerprint, url, timestamp):
         return True
 
 
 class Metadata(object):
-    def __init__(self, res, handle):
-        self.fresh = False  # :api
-        self._repo_dct = res.yum_repo
-        self._repomd_dct = res.yum_repomd
-        self._priv_mirrors = handle.mirrors[:]
+    def __init__(self, repo):
+        self._repo = repo
 
     @property
-    def _age(self):
-        return self._file_age('primary')
+    def fresh(self):
+        # :api
+        return self._repo.fresh()
 
-    @property
-    def _comps_fn(self):
-        return self._repo_dct.get("group_gz") or self._repo_dct.get("group")
 
-    @property
-    def _content_tags(self):
-        return self._repomd_dct.get('content_tags')
+class PackageTargetCallbacks(libdnf.repo.PackageTargetCB):
+    def __init__(self, package_pload):
+        super(PackageTargetCallbacks, self).__init__()
+        self.package_pload = package_pload
 
-    @property
-    def _distro_tags(self):
-        pairs = self._repomd_dct.get('distro_tags', [])
-        return {k: v for (k, v) in pairs}
+    def end(self, status, msg):
+        self.package_pload._end_cb(None, status, msg)
+        return 0
 
-    def _file_age(self, what):
-        return time.time() - self._file_timestamp(what)
+    def progress(self, totalToDownload, downloaded):
+        self.package_pload._progress_cb(None, totalToDownload, downloaded)
+        # print("totalToDownload:", totalToDownload,  "downloaded:", downloaded)
+        return 0
 
-    def _file_timestamp(self, what):
-        try:
-            return dnf.util.file_timestamp(self._repo_dct[what])
-        except OSError as e:
-            raise dnf.exceptions.MetadataError(ucd(e))
-
-    @property
-    def _filelists_fn(self):
-        return self._repo_dct.get('filelists')
-
-    @property
-    def _mirrors(self):
-        return self._priv_mirrors
-
-    @property
-    def _md_timestamp(self):
-        """Gets the highest timestamp of all metadata types."""
-        timestamps = [content.get('timestamp')
-                      for (_, content) in self._repomd_dct.items()
-                      if isinstance(content, dict)]
-        return max(timestamps)
-
-    @property
-    def _presto_fn(self):
-        return self._repo_dct.get('prestodelta')
-
-    @property
-    def _primary_fn(self):
-        return self._repo_dct.get('primary')
-
-    def _reset_age(self):
-        dnf.util.touch(self._primary_fn, no_create=True)
-
-    @property
-    def _repomd_fn(self):
-        return self._repo_dct.get('repomd')
-
-    @property
-    def _revision(self):
-        return self._repomd_dct.get('revision')
-
-    @property
-    def _timestamp(self):
-        return self._file_timestamp('primary')
-
-    @property
-    def _updateinfo_fn(self):
-        return self._repo_dct.get('updateinfo')
+    def mirrorFailure(self, msg, url):
+        self.package_pload._mirrorfail_cb(None, msg, url)
+        # print("handlemirrorFailure:", msg, url, metadata)
+        return 0
 
 
 class PackagePayload(dnf.callback.Payload):
     def __init__(self, pkg, progress):
         super(PackagePayload, self).__init__(progress)
+        self.callbacks = PackageTargetCallbacks(self)
         self.pkg = pkg
 
-    @dnf.util.log_method_call(functools.partial(logger.log, dnf.logging.SUBDEBUG))
     def _end_cb(self, cbdata, lr_status, msg):
         """End callback to librepo operation."""
         status = dnf.callback.STATUS_FAILED
@@ -328,12 +213,11 @@ class PackagePayload(dnf.callback.Payload):
             status = dnf.callback.STATUS_OK
         elif msg.startswith('Not finished'):
             return
-        elif lr_status == librepo.TRANSFER_ALREADYEXISTS:
+        elif lr_status == libdnf.repo.PackageTargetCB.TransferStatus_ALREADYEXISTS:
             status = dnf.callback.STATUS_ALREADY_EXISTS
 
         self.progress.end(self, status, msg)
 
-    @dnf.util.log_method_call(functools.partial(logger.log, dnf.logging.SUBDEBUG))
     def _mirrorfail_cb(self, cbdata, err, url):
         self.progress.end(self, dnf.callback.STATUS_MIRROR, err)
 
@@ -355,7 +239,6 @@ class PackagePayload(dnf.callback.Payload):
         dnf.util.ensure_dir(pkgdir)
 
         target_dct = {
-            'handle': pkg.repo._get_handle(),
             'dest': pkgdir,
             'resume': True,
             'cbdata': self,
@@ -365,7 +248,12 @@ class PackagePayload(dnf.callback.Payload):
         }
         target_dct.update(self._target_params())
 
-        return librepo.PackageTarget(**target_dct)
+        return libdnf.repo.PackageTarget(
+            pkg.repo._repo,
+            target_dct['relative_url'],
+            target_dct['dest'], target_dct['checksum_type'], target_dct['checksum'],
+            target_dct['expectedsize'], target_dct['base_url'], target_dct['resume'],
+            0, 0, self.callbacks)
 
 
 class RPMPayload(PackagePayload):
@@ -376,8 +264,8 @@ class RPMPayload(PackagePayload):
     def _target_params(self):
         pkg = self.pkg
         ctype, csum = pkg.returnIdSum()
-        ctype_code = getattr(librepo, ctype.upper(), librepo.CHECKSUM_UNKNOWN)
-        if ctype_code == librepo.CHECKSUM_UNKNOWN:
+        ctype_code = libdnf.repo.PackageTarget.checksumType(ctype)
+        if ctype_code == libdnf.repo.PackageTarget.ChecksumType_UNKNOWN:
             logger.warning(_("unsupported checksum type: %s"), ctype)
 
         return {
@@ -396,18 +284,17 @@ class RPMPayload(PackagePayload):
 
 class RemoteRPMPayload(PackagePayload):
 
-    def __init__(self, remote_location, conf, handle, progress):
+    def __init__(self, remote_location, conf, progress):
         super(RemoteRPMPayload, self).__init__("unused_object", progress)
         self.remote_location = remote_location
         self.remote_size = 0
-        self.handle = handle
         self.conf = conf
         s = (self.conf.releasever or "") + self.conf.substitutions.get('basearch')
         digest = hashlib.sha256(s.encode('utf8')).hexdigest()[:16]
         repodir = "commandline-" + digest
         self.pkgdir = os.path.join(self.conf.cachedir, repodir, "packages")
         dnf.util.ensure_dir(self.pkgdir)
-        self.local_path = os.path.join(self.pkgdir, self.__str__())
+        self.local_path = os.path.join(self.pkgdir, self.__str__().lstrip("/"))
 
     def __str__(self):
         return os.path.basename(self.remote_location)
@@ -422,19 +309,10 @@ class RemoteRPMPayload(PackagePayload):
             logger.critical(''.join(except_list))
 
     def _librepo_target(self):
-        target_dct = {
-            'handle': self.handle,
-            'relative_url': os.path.basename(self.remote_location),
-            'dest': self.pkgdir,
-            'resume': True,
-            'cbdata': self,
-            'progresscb': self._progress_cb,
-            'endcb': self._end_cb,
-            'mirrorfailurecb': self._mirrorfail_cb,
-            'base_url': os.path.dirname(self.remote_location),
-        }
-
-        return librepo.PackageTarget(**target_dct)
+        return libdnf.repo.PackageTarget(
+            self.conf._config, os.path.basename(self.remote_location),
+            self.pkgdir, 0, None, 0, os.path.dirname(self.remote_location),
+            True, 0, 0, self.callbacks)
 
     @property
     def download_size(self):
@@ -443,6 +321,12 @@ class RemoteRPMPayload(PackagePayload):
 
 
 class MDPayload(dnf.callback.Payload):
+
+    def __init__(self, progress):
+        super(MDPayload, self).__init__(progress)
+        self._text = ""
+        self._download_size = 0
+        self.fastest_mirror_running = False
 
     def __str__(self):
         if dnf.pycomp.PY3:
@@ -458,11 +342,11 @@ class MDPayload(dnf.callback.Payload):
         self.progress.progress(self, done)
 
     def _fastestmirror_cb(self, cbdata, stage, data):
-        if stage == librepo.FMSTAGE_DETECTION:
+        if stage == libdnf.repo.RepoCB.FastestMirrorStage_DETECTION:
             # pinging mirrors, this might take a while
-            msg = _('determining the fastest mirror (%d hosts).. ') % data
-            self.fm_running = True
-        elif stage == librepo.FMSTAGE_STATUS and self.fm_running:
+            msg = _('determining the fastest mirror (%s hosts).. ') % data
+            self.fastest_mirror_running = True
+        elif stage == libdnf.repo.RepoCB.FastestMirrorStage_STATUS and self.fastest_mirror_running:
             # done.. report but ignore any errors
             msg = 'error: %s\n' % data if data else 'done.\n'
         else:
@@ -489,8 +373,7 @@ class MDPayload(dnf.callback.Payload):
 
     def start(self, text):
         self._text = text
-        self._download_size = 0
-        self.progress.start(1, 1)
+        self.progress.start(1, 0)
 
     def end(self):
         self._download_size = 0
@@ -498,11 +381,39 @@ class MDPayload(dnf.callback.Payload):
 
 
 # use the local cache even if it's expired. download if there's no cache.
-SYNC_LAZY = 1
- # use the local cache, even if it's expired, never download.
-SYNC_ONLY_CACHE = 2
+SYNC_LAZY = libdnf.repo.Repo.SyncStrategy_LAZY
+# use the local cache, even if it's expired, never download.
+SYNC_ONLY_CACHE = libdnf.repo.Repo.SyncStrategy_ONLY_CACHE
 # try the cache, if it is expired download new md.
-SYNC_TRY_CACHE = 3
+SYNC_TRY_CACHE = libdnf.repo.Repo.SyncStrategy_TRY_CACHE
+
+
+class RepoCallbacks(libdnf.repo.RepoCB):
+    def __init__(self, repo):
+        super(RepoCallbacks, self).__init__()
+        self._repo = repo
+        self._md_pload = repo._md_pload
+
+    def start(self, what):
+        self._md_pload.start(what)
+
+    def end(self):
+        self._md_pload.end()
+
+    def progress(self, totalToDownload, downloaded):
+        self._md_pload._progress_cb(None, totalToDownload, downloaded)
+        # print("totalToDownload:", totalToDownload,  "downloaded:", downloaded)
+        return 0
+
+    def fastestMirror(self, stage, ptr):
+        self._md_pload._fastestmirror_cb(None, stage, ptr)
+
+    def handleMirrorFailure(self, msg, url, metadata):
+        self._md_pload._mirror_failure_cb(None, msg, url, metadata)
+        return 0
+
+    def repokeyImport(self, id, userid, fingerprint, url, timestamp):
+        return self._repo._key_import._confirm(id, userid, fingerprint, url, timestamp)
 
 
 class Repo(dnf.conf.RepoConf):
@@ -512,16 +423,20 @@ class Repo(dnf.conf.RepoConf):
     def __init__(self, name=None, parent_conf=None):
         # :api
         super(Repo, self).__init__(section=name, parent=parent_conf)
-        self._repofile = None
-        self._expired = False
-        self._pkgdir = None
+
+        self._config.this.disown()  # _repo will be the owner of _config
+        self._repo = libdnf.repo.Repo(name, self._config)
+
         self._md_pload = MDPayload(dnf.callback.NullDownloadProgress())
+        self._callbacks = RepoCallbacks(self)
+        self._callbacks.this.disown()  # _repo will be the owner of callbacks
+        self._repo.setCallbacks(self._callbacks)
+
+        self._pkgdir = None
         self._key_import = _NullKeyImport()
         self.metadata = None  # :api
-        self._sync_strategy = self.DEFAULT_SYNC
+        self._repo.setSyncStrategy(self.DEFAULT_SYNC)
         self._substitutions = dnf.conf.substitutions.Substitutions()
-        self._max_mirror_tries = 0  # try them all
-        self._handle = None
         self._hawkey_repo = self._init_hawkey_repo()
         self._check_config_file_age = parent_conf.check_config_file_age \
             if parent_conf is not None else True
@@ -529,90 +444,25 @@ class Repo(dnf.conf.RepoConf):
     @property
     def id(self):
         # :api
-        return self._section
+        return self._repo.getId()
 
     @property
     def repofile(self):
         # :api
-        return self._repofile
+        return self._repo.getRepoFilePath()
 
     @repofile.setter
     def repofile(self, value):
-        self._repofile = value
-
-    @property
-    def _cachedir(self):
-        s = self.metalink or self.mirrorlist or \
-            (self.baseurl and self.baseurl[0]) or self.id
-        digest = hashlib.sha256(s.encode('utf8')).hexdigest()[:16]
-        repodir = "%s-%s" % (self.id, digest)
-        return os.path.join(self.basecachedir, repodir)
-
-    @property
-    def _filelists_fn(self):
-        return self.metadata._filelists_fn
-
-    @property
-    def _local(self):
-        if self.metalink or self.mirrorlist:
-            return False
-        if self.baseurl[0].startswith('file://'):
-            return True
-        return False
-
-    @property
-    def _md_lazy(self):
-        return self._sync_strategy == SYNC_LAZY
-
-    @_md_lazy.setter
-    def _md_lazy(self, val):
-        """Set whether it is fine to use stale metadata."""
-        if val:
-            self._sync_strategy = SYNC_LAZY
-        else:
-            self._sync_strategy = SYNC_TRY_CACHE
-
-    @property
-    def _md_only_cached(self):
-        return self._sync_strategy == SYNC_ONLY_CACHE
-
-    @_md_only_cached.setter
-    def _md_only_cached(self, val):
-        """Force using only the metadata the repo has in the local cache."""
-        if val:
-            self._sync_strategy = SYNC_ONLY_CACHE
-        else:
-            self._sync_strategy = SYNC_TRY_CACHE
-
-    @property
-    def _md_expired(self):
-        """Return whether the cached metadata is expired."""
-        try:
-            exp_remaining = self._metadata_expire_in()[1]
-            return False if exp_remaining is None else exp_remaining <= 0
-        except dnf.exceptions.MetadataError:
-            return False
-
-    @property
-    def _metadata_dir(self):
-        return os.path.join(self._cachedir, _METADATA_RELATIVE_DIR)
-
-    @property
-    def _metalink_path(self):
-        return _priv_metalink_path(self._cachedir)
-
-    @property
-    def _mirrorlist_path(self):
-        return _priv_mirrorlist_path(self._cachedir)
+        self._repo.setRepoFilePath(value)
 
     @property
     def pkgdir(self):
         # :api
-        if self._local:
+        if self._repo.isLocal():
             return dnf.util.strip_prefix(self.baseurl[0], 'file://')
         if self._pkgdir is not None:
             return self._pkgdir
-        return os.path.join(self._cachedir, _PACKAGES_RELATIVE_DIR)
+        return os.path.join(self._repo.getCachedir(), _PACKAGES_RELATIVE_DIR)
 
     @pkgdir.setter
     def pkgdir(self, val):
@@ -620,24 +470,16 @@ class Repo(dnf.conf.RepoConf):
         self._pkgdir = val
 
     @property
-    def _presto_fn(self):
-        return self.metadata._presto_fn
-
-    @property
-    def _primary_fn(self):
-        return self.metadata._primary_fn
-
-    @property
     def _pubring_dir(self):
-        return os.path.join(self._cachedir, 'pubring')
+        return os.path.join(self._repo.getCachedir(), 'pubring')
 
     @property
-    def _repomd_fn(self):
-        return self.metadata._repomd_fn
+    def load_metadata_other(self):
+        return self._repo.getLoadMetadataOther()
 
-    @property
-    def _updateinfo_fn(self):
-        return self.metadata._updateinfo_fn
+    @load_metadata_other.setter
+    def load_metadata_other(self, val):
+        self._repo.setLoadMetadataOther(val)
 
     def __lt__(self, other):
         return self.id < other.id
@@ -652,228 +494,19 @@ class Repo(dnf.conf.RepoConf):
         if name == 'priority':
             self._hawkey_repo.priority = self.priority
 
-    def _handle_load(self, handle):
-        if not self.repo_gpgcheck:
-            return self._handle_load_core(handle)
-        try:
-            return self._handle_load_with_pubring(handle)
-        except _DetailedLibrepoError as e:
-            if e.librepo_code != librepo.LRE_BADGPG:
-                raise
-            dnf.util.clear_dir(handle.destdir)
-            dnf.crypto.import_repo_keys(self)
-            return self._handle_load_with_pubring(handle)
-
-    def _handle_load_core(self, handle):
-        if handle.progresscb:
-            self._md_pload.start(self.name or self.id or 'unknown')
-        result = handle._perform()
-        if handle.progresscb:
-            self._md_pload.end()
-
-        return Metadata(result, handle)
-
-    def _handle_load_with_pubring(self, handle):
-        with dnf.crypto.pubring_dir(self._pubring_dir):
-            return self._handle_load_core(handle)
-
-    def _handle_new_local(self, destdir):
-        return _Handle._new_local(self._substitutions, self.repo_gpgcheck,
-                                  self._max_mirror_tries, destdir)
-
-    def _handle_new_pkg_download(self):
-        return self._handle_new_remote(self.pkgdir, mirror_setup=False)
-
-    def _handle_new_remote(self, destdir, mirror_setup=True):
-        h = _Handle(self.repo_gpgcheck, self._max_mirror_tries,
-                    self.max_parallel_downloads)
-        h.varsub = _subst2tuples(self._substitutions)
-        h.destdir = destdir
-        self._set_ip_resolve(h)
-
-        # setup mirror URLs
-        mirrorlist = self.metalink or self.mirrorlist
-        if mirrorlist:
-            h.hmfcb = self._md_pload._mirror_failure_cb
-            if mirror_setup:
-                if self.metalink:
-                    h.setopt(librepo.LRO_METALINKURL, mirrorlist)
-                else:
-                    h.setopt(librepo.LRO_MIRRORLISTURL, mirrorlist)
-                    # YUM-DNF compatibility hack. YUM guessed by content of keyword "metalink" if
-                    # mirrorlist is really mirrorlist or metalink)
-                    if 'metalink' in mirrorlist:
-                        h.setopt(librepo.LRO_METALINKURL, mirrorlist)
-                h.setopt(librepo.LRO_FASTESTMIRROR, self.fastestmirror)
-                h.setopt(librepo.LRO_FASTESTMIRRORCACHE,
-                         os.path.join(self.basecachedir, 'fastestmirror.cache'))
-            else:
-                # use already resolved mirror list
-                h.setopt(librepo.LRO_URLS, self.metadata._mirrors)
-        elif self.baseurl:
-            h.setopt(librepo.LRO_URLS, self.baseurl)
-        else:
-            msg = _('Cannot find a valid baseurl for repo: %s') % self.id
-            raise dnf.exceptions.RepoError(msg)
-
-        # setup username/password if needed
-        if self.username:
-            h.setopt(librepo.LRO_USERPWD, _user_pass_str(self.username, self.password))
-
-        # setup ssl stuff
-        if self.sslcacert:
-            h.setopt(librepo.LRO_SSLCACERT, self.sslcacert)
-        if self.sslclientcert:
-            h.setopt(librepo.LRO_SSLCLIENTCERT, self.sslclientcert)
-        if self.sslclientkey:
-            h.setopt(librepo.LRO_SSLCLIENTKEY, self.sslclientkey)
-
-        # setup download progress
-        h.progresscb = self._md_pload._progress_cb
-        self._md_pload.fm_running = False
-        h.fastestmirrorcb = self._md_pload._fastestmirror_cb
-
-        # apply repo options
-        h.lowspeedlimit = self.minrate
-        maxspeed = self.throttle if isinstance(self.throttle, int) \
-            else int(self.bandwidth * self.throttle)
-        if maxspeed != 0 and self.minrate > maxspeed:
-            raise dnf.exceptions.Error(_("Maximum download speed is lower than minimum. "
-                                         "Please change configuration of minrate or throttle"))
-        h.maxspeed = maxspeed
-        h.setopt(librepo.LRO_PROXYAUTH, True)
-        h.proxy = self.proxy
-        if self.timeout > 0:
-            h.connecttimeout = self.timeout
-            h.lowspeedtime = self.timeout
-        else:
-            h.connecttimeout = None
-            h.lowspeedtime = None
-        h.proxyuserpwd = _user_pass_str(self.proxy_username, self.proxy_password)
-        h.sslverifypeer = h.sslverifyhost = self.sslverify
-        return h
-
     def _init_hawkey_repo(self):
         hrepo = hawkey.Repo(self.id)
         hrepo.cost = self.cost
         hrepo.priority = self.priority
         return hrepo
 
-    def _replace_metadata(self, handle):
-        dnf.util.ensure_dir(self._cachedir)
-        dnf.util.rm_rf(self._metadata_dir)
-        dnf.util.rm_rf(self._metalink_path)
-        dnf.util.rm_rf(self._mirrorlist_path)
-        shutil.move(handle._metadata_dir, self._metadata_dir)
-        if handle.metalink:
-            shutil.move(handle._metalink_path, self._metalink_path)
-        elif handle.mirrorlist:
-            shutil.move(handle._mirrorlist_path, self._mirrorlist_path)
-
-    def _reset_metadata_expired(self):
-        if self._expired:
-            # explicitly requested expired state
-            return
-        self._expired = self.metadata._age >= self.metadata_expire
-        if self.metadata_expire == -1:
-            self._expired = False
-
-    def _set_ip_resolve(self, handle):
-        if self.ip_resolve == 'ipv4':
-            handle.setopt(librepo.LRO_IPRESOLVE, librepo.IPRESOLVE_V4)
-        elif self.ip_resolve == 'ipv6':
-            handle.setopt(librepo.LRO_IPRESOLVE, librepo.IPRESOLVE_V6)
-
-    def _try_cache(self):
-        """Tries to load metadata from the local cache.
-
-        Correctly sets self._expired.
-
-        Returns True if we got any (even expired) metadata locally.
-
-        """
-        assert self.metadata is None
-        handle = self._handle_new_local(self._cachedir)
-        try:
-            self.metadata = self._handle_load(handle)
-        except (_DetailedLibrepoError, IOError):
-            return False
-        self._reset_metadata_expired()
-        return True
-
-    def _try_revive_by_metalink(self):
-        """Use metalink to check whether our metadata are still current."""
-        repomd_fn = self.metadata._repo_dct['repomd']
-        with dnf.util.tmpdir() as tmpdir, open(repomd_fn) as repomd:
-            handle = self._handle_new_remote(tmpdir)
-            handle.fetchmirrors = True
-            handle._perform()
-            if handle.metalink is None:
-                logger.debug(_("reviving: repo '%s' skipped, no metalink."), self.id)
-                return False
-            hashes = handle.metalink['hashes']
-            hashes = [hsh_val for hsh_val in hashes
-                      if hsh_val[0] in _RECOGNIZED_CHKSUMS]
-            if len(hashes) < 1:
-                logger.debug(_("reviving: repo '%s' skipped, no usable hash."),
-                             self.id)
-                return False
-            algos = list(map(operator.itemgetter(0), hashes))
-            chksums = dnf.yum.misc.Checksums(algos,
-                                             ignore_missing=True,
-                                             ignore_none=True)
-            chksums.read(repomd, -1)
-            digests = chksums.hexdigests()
-            for (algo, digest) in hashes:
-                if digests[algo] != digest:
-                    logger.debug(_("reviving: failed for '%s', mismatched %s sum."),
-                                 self.id, algo)
-                    return False
-        logger.debug(_("reviving: '%s' can be revived - metalink checksums match."), self.id)
-        return True
-
-    def _try_revive_by_repomd(self):
-        """Use repomd to check whether our metadata are still current."""
-        repomd_fn = self.metadata._repo_dct['repomd']
-        with dnf.util.tmpdir() as tmpdir, open(repomd_fn) as repomd:
-            handle = self._handle_new_remote(tmpdir)
-            handle.yumdlist = librepo.YUM_REPOMDONLY
-            with dnf.crypto.pubring_dir(self._pubring_dir):
-                result = handle._perform()
-            fresh_repomd_fn = result.rpmmd_repo['repomd']
-            with open(fresh_repomd_fn) as fresh_repomd:
-                if repomd.read() != fresh_repomd.read():
-                    logger.debug(_("reviving: failed for '%s', mismatched repomd."), self.id)
-                    return False
-        logger.debug(_("reviving: '%s' can be revived - repomd matches."), self.id)
-        return True
-
-    def _try_revive(self):
-        """Use metalink to check whether our metadata are still current."""
-        if not self.metadata:
-            return False
-
-        if self.metalink:
-            return self._try_revive_by_metalink()
-        else:
-            return self._try_revive_by_repomd()
-
     def disable(self):
         # :api
-        self.enabled = False
+        self._repo.disable()
 
     def enable(self):
         # :api
-        self.enabled = True
-
-    def _get_handle(self):
-        """Returns a librepo handle, set as per the repo options
-
-        Note that destdir is None, and the handle is cached.
-        """
-        if not self._handle:
-            self._handle = self._handle_new_remote(None)
-        return self._handle
+        self._repo.enable()
 
     def load(self):
         # :api
@@ -889,52 +522,13 @@ class Repo(dnf.conf.RepoConf):
         Returns True if this call to load() caused a fresh metadata download.
 
         """
-        if self.metadata or self._try_cache():
-            if self._check_config_file_age and self.repofile \
-                    and dnf.util.file_age(self.repofile) < self.metadata._age:
-                self._md_expire_cache()
-            if self._sync_strategy in (SYNC_ONLY_CACHE, SYNC_LAZY) or \
-               not self._expired:
-                logger.debug(_('repo: using cache for: %s'), self.id)
-                return False
-        if self._sync_strategy == SYNC_ONLY_CACHE:
-            msg = _("Cache-only enabled but no cache for '%s'") % self.id
-            raise dnf.exceptions.RepoError(msg)
+        ret = False
         try:
-            if self._try_revive():
-                # the expired metadata still reflect the origin:
-                self.metadata._reset_age()
-                self._expired = False
-                return True
-
-            with dnf.util.tmpdir() as tmpdir:
-                handle = self._handle_new_remote(tmpdir)
-                msg = _('repo: downloading from remote: %s, %s')
-                logger.log(dnf.logging.DDEBUG, msg, self.id, handle)
-                self._handle_load(handle)
-                # override old md with the new ones:
-                self._replace_metadata(handle)
-
-            # get md from the cache now:
-            handle = self._handle_new_local(self._cachedir)
-            self.metadata = self._handle_load(handle)
-            self.metadata.fresh = True
-        except _DetailedLibrepoError as e:
-            dmsg = _("Cannot download '%s': %s.")
-            logger.log(dnf.logging.DEBUG, dmsg, e.source_url, e.librepo_msg)
-            msg = _("Failed to synchronize cache for repo '%s'") % (self.id)
-            raise dnf.exceptions.RepoError(msg)
-        self._expired = False
-        return True
-
-    def _md_expire_cache(self):
-        """Mark whatever is in the current cache expired.
-
-        This repo instance will alway try to fetch a fresh metadata after this
-        method is called.
-
-        """
-        self._expired = True
+            ret = self._repo.load()
+        except RuntimeError as e:
+            raise dnf.exceptions.RepoError(str(e))
+        self.metadata = Metadata(self._repo)
+        return ret
 
     def _metadata_expire_in(self):
         """Get the number of seconds after which the cached metadata will expire.
@@ -945,12 +539,12 @@ class Repo(dnf.conf.RepoConf):
 
         """
         if not self.metadata:
-            self._try_cache()
+            self._repo.loadCache(False)
         if self.metadata:
             if self.metadata_expire == -1:
                 return True, None
-            expiration = self.metadata_expire - self.metadata._age
-            if self._expired:
+            expiration = self._repo.getExpiresIn()
+            if self._repo.isExpired():
                 expiration = min(0, expiration)
             return True, expiration
         return False, 0
@@ -961,12 +555,3 @@ class Repo(dnf.conf.RepoConf):
     def set_progress_bar(self, progress):
         # :api
         self._md_pload.progress = progress
-
-    def _valid(self):
-        if len(self.baseurl) == 0 and not self.metalink and not self.mirrorlist:
-            return _("Repository %s has no mirror or baseurl set.") % self.id
-        supported_types = ['rpm-md', 'rpm', 'repomd', 'rpmmd', 'yum', 'YUM']
-        if self.type and self.type not in supported_types:
-            return _("Repository '{}' has unsupported type: 'type={}', skipping.").format(
-                self.id, self.type)
-        return None

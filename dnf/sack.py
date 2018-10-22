@@ -61,28 +61,26 @@ class SackVersion(object):
 class Sack(hawkey.Sack):
     def __init__(self, *args, **kwargs):
         super(Sack, self).__init__(*args, **kwargs)
+        self._moduleContainer = None
 
     def _configure(self, installonly=None, installonly_limit=0):
         if installonly:
             self.installonly = installonly
         self.installonly_limit = installonly_limit
 
-    def query(self):
+    def query(self, flags=0):
         # :api
         """Factory function returning a DNF Query."""
-        return dnf.query.Query(self)
+        return dnf.query.Query(self, flags)
 
-    def _rpmdb_version(self, history):
-        pkgs = self.query().installed().run()
+    def _rpmdb_version(self):
+        # TODO: verify ordering
+        pkgs = self.query(hawkey.IGNORE_EXCLUDES).installed().run()
         main = SackVersion()
-
-        # [nevra, type, checksum, nevra, type, checksum...]
-        data = history.checksums(pkgs)
-        i = 0
-
-        while i < len(data) - 2:
-            main._update(data[i], data[i + 1], data[i + 2])
-            i += 3
+        for i in pkgs:
+            # TODO: what if _pkgid is not sha1
+            data = (str(i), "sha1", i._pkgid)
+            main._update(*data)
         return main
 
 def _build_sack(base):
