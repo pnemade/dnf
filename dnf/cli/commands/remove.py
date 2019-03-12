@@ -69,6 +69,10 @@ class RemoveCommand(commands.Command):
         demands.sack_activation = True
         if self.opts.duplicated:
             demands.available_repos = True
+        elif dnf.base.WITH_MODULES and self.opts.grp_specs:
+            demands.available_repos = True
+            demands.fresh_metadata = False
+            demands.allow_erasing = True
         else:
             demands.allow_erasing = True
             demands.available_repos = False
@@ -125,12 +129,19 @@ class RemoveCommand(commands.Command):
             if dnf.base.WITH_MODULES:
                 module_base = dnf.module.module_base.ModuleBase(self.base)
                 skipped_grps = module_base.remove(self.opts.grp_specs)
+                if len(self.opts.grp_specs) != len(skipped_grps):
+                    done = True
             else:
                 skipped_grps = self.opts.grp_specs
 
-            self.base.read_comps(arch_filter=True)
-            if self.base.env_group_remove(skipped_grps):
-                done = True
+            if skipped_grps:
+                self.base.read_comps(arch_filter=True)
+                for group in skipped_grps:
+                    try:
+                        if self.base.env_group_remove([group]):
+                            done = True
+                    except dnf.exceptions.Error:
+                        pass
 
         for pkg_spec in self.opts.pkg_specs:
             try:
@@ -142,4 +153,4 @@ class RemoveCommand(commands.Command):
                 done = True
 
         if not done:
-            raise dnf.exceptions.Error(_('No packages marked for removal.'))
+            logger.warning(_('No packages marked for removal.'))

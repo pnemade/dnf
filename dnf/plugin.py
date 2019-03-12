@@ -25,13 +25,14 @@ from __future__ import unicode_literals
 import fnmatch
 import glob
 import importlib
-import iniparse.compat
 import inspect
 import logging
 import operator
 import os
 import sys
+import traceback
 
+import libdnf
 import dnf.logging
 import dnf.pycomp
 import dnf.util
@@ -51,13 +52,15 @@ class Plugin(object):
     @classmethod
     def read_config(cls, conf):
         # :api
-        parser = iniparse.compat.ConfigParser()
+        parser = libdnf.conf.ConfigParser()
         name = cls.config_name if cls.config_name else cls.name
         files = ['%s/%s.conf' % (path, name) for path in conf.pluginconfpath]
-        try:
-            parser.read(files)
-        except iniparse.compat.ParsingError as e:
-            raise dnf.exceptions.ConfigError(_("Parsing file failed: %s") % e)
+        for file in files:
+            if os.path.isfile(file):
+                try:
+                    parser.read(file)
+                except Exception as e:
+                    raise dnf.exceptions.ConfigError(_("Parsing file failed: %s") % str(e))
         return parser
 
     def __init__(self, base, cli):
@@ -95,10 +98,14 @@ class Plugins(object):
         self.plugin_cls = []
         self.plugins = []
 
-    def _caller(method):
-        def fn(self):
-            dnf.util.mapall(operator.methodcaller(method), self.plugins)
-        return fn
+    def _caller(self, method):
+        for plugin in self.plugins:
+            try:
+                getattr(plugin, method)()
+            except Exception:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                except_list = traceback.format_exception(exc_type, exc_value, exc_traceback)
+                logger.critical(''.join(except_list))
 
     def _check_enabled(self, conf, enable_plugins):
         """Checks whether plugins are enabled or disabled in configuration files
@@ -131,19 +138,28 @@ class Plugins(object):
             names = sorted(plugin.name for plugin in self.plugin_cls)
             logger.debug(_('Loaded plugins: %s'), ', '.join(names))
 
-    _run_pre_config = _caller('pre_config')
+    def _run_pre_config(self):
+        self._caller('pre_config')
 
-    _run_config = _caller('config')
+    def _run_config(self):
+        self._caller('config')
 
     def _run_init(self, base, cli=None):
         for p_cls in self.plugin_cls:
             plugin = p_cls(base, cli)
             self.plugins.append(plugin)
 
-    run_sack = _caller('sack')
-    run_resolved = _caller('resolved')
-    run_pre_transaction = _caller('pre_transaction')
-    run_transaction = _caller('transaction')
+    def run_sack(self):
+        self._caller('sack')
+
+    def run_resolved(self):
+        self._caller('resolved')
+
+    def run_pre_transaction(self):
+        self._caller('pre_transaction')
+
+    def run_transaction(self):
+        self._caller('transaction')
 
     def _unload(self):
         del sys.modules[DYNAMIC_PACKAGE]
@@ -163,6 +179,7 @@ class Plugins(object):
         for plugin in self.plugins[:]:
             if inspect.getfile(plugin.__class__) in files_erased:
                 self.plugins.remove(plugin)
+
 
 def _plugin_classes():
     return Plugin.__subclasses__()
@@ -192,7 +209,7 @@ def _iter_py_files(paths, skips, enable_plugins):
 
 
 def register_command(command_class):
-    #:api
+    # :api
     """A class decorator for automatic command registration."""
     def __init__(self, base, cli):
         if cli:

@@ -59,7 +59,7 @@ _CACHEDIR_RE = r'(?P<repoid>[%s]+)\-[%s]{16}' % (re.escape(_REPOID_CHARS),
 # particular type.  The filename is expected to not contain the base cachedir
 # path components.
 CACHE_FILES = {
-    'metadata': r'^%s\/.*(xml(\.gz|\.xz|\.bz2)?|asc|cachecookie|%s)$' %
+    'metadata': r'^%s\/.*(xml(\.gz|\.xz|\.bz2|.zck)?|asc|cachecookie|%s)$' %
                 (_CACHEDIR_RE, _MIRRORLIST_FILENAME),
     'packages': r'^%s\/%s\/.+rpm$' % (_CACHEDIR_RE, _PACKAGES_RELATIVE_DIR),
     'dbcache': r'^.+(solv|solvx)$',
@@ -191,12 +191,10 @@ class PackageTargetCallbacks(libdnf.repo.PackageTargetCB):
 
     def progress(self, totalToDownload, downloaded):
         self.package_pload._progress_cb(None, totalToDownload, downloaded)
-        # print("totalToDownload:", totalToDownload,  "downloaded:", downloaded)
         return 0
 
     def mirrorFailure(self, msg, url):
         self.package_pload._mirrorfail_cb(None, msg, url)
-        # print("handlemirrorFailure:", msg, url, metadata)
         return 0
 
 
@@ -402,7 +400,6 @@ class RepoCallbacks(libdnf.repo.RepoCB):
 
     def progress(self, totalToDownload, downloaded):
         self._md_pload._progress_cb(None, totalToDownload, downloaded)
-        # print("totalToDownload:", totalToDownload,  "downloaded:", downloaded)
         return 0
 
     def fastestMirror(self, stage, ptr):
@@ -436,6 +433,8 @@ class Repo(dnf.conf.RepoConf):
         self._key_import = _NullKeyImport()
         self.metadata = None  # :api
         self._repo.setSyncStrategy(self.DEFAULT_SYNC)
+        if parent_conf:
+            self._repo.setSubstitutions(parent_conf.substitutions)
         self._substitutions = dnf.conf.substitutions.Substitutions()
         self._hawkey_repo = self._init_hawkey_repo()
         self._check_config_file_age = parent_conf.check_config_file_age \
@@ -508,6 +507,43 @@ class Repo(dnf.conf.RepoConf):
         # :api
         self._repo.enable()
 
+    def add_metadata_type_to_download(self, metadata_type):
+        # :api
+        """Ask for additional repository metadata type to download.
+
+        Given metadata_type is appended to the default metadata set when
+        repository is downloaded.
+
+        Parameters
+        ----------
+        metadata_type: string
+
+        Example: add_metadata_type_to_download("productid")
+        """
+        self._repo.addMetadataTypeToDownload(metadata_type)
+
+    def get_metadata_path(self, metadata_type):
+        # :api
+        """Return path to the file with downloaded repository metadata of given type.
+
+        Parameters
+        ----------
+        metadata_type: string
+        """
+        return self._repo.getMetadataPath(metadata_type)
+
+    def get_metadata_content(self, metadata_type):
+        # :api
+        """Return content of the file with downloaded repository metadata of given type.
+
+        Content of compressed metadata file is returned uncompressed.
+
+        Parameters
+        ----------
+        metadata_type: string
+        """
+        return self._repo.getMetadataContent(metadata_type)
+
     def load(self):
         # :api
         """Load the metadata for this repo.
@@ -526,6 +562,10 @@ class Repo(dnf.conf.RepoConf):
         try:
             ret = self._repo.load()
         except RuntimeError as e:
+            if self.skip_if_unavailable:
+                logger.warning(str(e))
+            else:
+                logger.error(str(e))
             raise dnf.exceptions.RepoError(str(e))
         self.metadata = Metadata(self._repo)
         return ret
@@ -555,3 +595,26 @@ class Repo(dnf.conf.RepoConf):
     def set_progress_bar(self, progress):
         # :api
         self._md_pload.progress = progress
+
+    def get_http_headers(self):
+        # :api
+        """Returns user defined http headers.
+
+        Returns
+        -------
+        headers : tuple of strings
+        """
+        return self._repo.getHttpHeaders()
+
+    def set_http_headers(self, headers):
+        # :api
+        """Sets http headers.
+
+        Sets new http headers and rewrites existing ones.
+
+        Parameters
+        ----------
+        headers : tuple or list of strings
+            Example: set_http_headers(["User-Agent: Agent007", "MyFieldName: MyFieldValue"])
+        """
+        self._repo.setHttpHeaders(headers)

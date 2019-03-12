@@ -123,14 +123,27 @@ def cli_run(cli, base):
             ret = resolving(cli, base)
         except dnf.exceptions.DepsolveError as e:
             ex_Error(e)
+            msg = ""
             if not cli.demands.allow_erasing and base._goal.problem_conflicts(available=True):
-                msg = _("(try to add '%s' to command line to replace conflicting "
-                        "packages") % "--allowerasing"
-                if cli.base.conf.strict:
-                    msg += _(" or '%s' to skip uninstallable packages)") % "--skip-broken"
+                msg += _("try to add '{}' to command line to replace conflicting "
+                         "packages").format("--allowerasing")
+            if cli.base.conf.strict:
+                if not msg:
+                    msg += _("try to add '{}' to skip uninstallable packages").format(
+                        "--skip-broken")
                 else:
-                    msg += ")"
-                logger.info(msg)
+                    msg += _(" or '{}' to skip uninstallable packages").format("--skip-broken")
+            if cli.base.conf.best:
+                prio = cli.base.conf._get_priority("best")
+                if prio <= dnf.conf.PRIO_MAINCONFIG:
+                    if not msg:
+                        msg += _("try to add '{}' to use not only best candidate packages").format(
+                            "--nobest")
+                    else:
+                        msg += _(" or '{}' to use not only best candidate packages").format(
+                            "--nobest")
+            if msg:
+                logger.info("({})".format(msg))
             raise
         if ret:
             return ret

@@ -160,12 +160,15 @@ class Base(object):
         disabled = set(self.conf.disable_excludes)
         if 'all' in disabled and WITH_MODULES:
             hot_fix_repos = [i.id for i in self.repos.iter_enabled() if i.module_hotfixes]
-            solver_errors = self.sack.filter_modules(
-                self._moduleContainer, hot_fix_repos, self.conf.installroot,
-                self.conf.module_platform_id, False, self.conf.debug_solver)
+            try:
+                solver_errors = self.sack.filter_modules(
+                    self._moduleContainer, hot_fix_repos, self.conf.installroot,
+                    self.conf.module_platform_id, False, self.conf.debug_solver)
+            except hawkey.Exception as e:
+                raise dnf.exceptions.Error(ucd(e))
             if solver_errors:
                 logger.warning(
-                    dnf.module.module_base.format_modular_solver_errors(solver_errors))
+                    dnf.module.module_base.format_modular_solver_errors(solver_errors[0]))
             return
         repo_includes = []
         repo_excludes = []
@@ -207,25 +210,31 @@ class Base(object):
                     self.sack, with_nevra=True, with_provides=False, with_filenames=False))
             if not only_main and WITH_MODULES:
                 hot_fix_repos = [i.id for i in self.repos.iter_enabled() if i.module_hotfixes]
-                solver_errors = self.sack.filter_modules(
-                    self._moduleContainer, hot_fix_repos, self.conf.installroot,
-                    self.conf.module_platform_id, False, self.conf.debug_solver)
+                try:
+                    solver_errors = self.sack.filter_modules(
+                        self._moduleContainer, hot_fix_repos, self.conf.installroot,
+                        self.conf.module_platform_id, False, self.conf.debug_solver)
+                except hawkey.Exception as e:
+                    raise dnf.exceptions.Error(ucd(e))
                 if solver_errors:
                     logger.warning(
-                        dnf.module.module_base.format_modular_solver_errors(solver_errors))
-            if include_query:
+                        dnf.module.module_base.format_modular_solver_errors(solver_errors[0]))
+            if len(self.conf.includepkgs) > 0:
                 self.sack.add_includes(include_query)
                 self.sack.set_use_includes(True)
             if exclude_query:
                 self.sack.add_excludes(exclude_query)
         elif not only_main and WITH_MODULES:
             hot_fix_repos = [i.id for i in self.repos.iter_enabled() if i.module_hotfixes]
-            solver_errors = self.sack.filter_modules(
-                self._moduleContainer, hot_fix_repos, self.conf.installroot,
-                self.conf.module_platform_id, False, self.conf.debug_solver)
+            try:
+                solver_errors = self.sack.filter_modules(
+                    self._moduleContainer, hot_fix_repos, self.conf.installroot,
+                    self.conf.module_platform_id, False, self.conf.debug_solver)
+            except hawkey.Exception as e:
+                raise dnf.exceptions.Error(ucd(e))
             if solver_errors:
                 logger.warning(
-                    dnf.module.module_base.format_modular_solver_errors(solver_errors))
+                    dnf.module.module_base.format_modular_solver_errors(solver_errors[0]))
 
         if repo_includes:
             for query, repoid in repo_includes:
@@ -389,7 +398,7 @@ class Base(object):
                     if load_system_repo != 'auto':
                         raise
             if load_available_repos:
-                errors = []
+                error_repos = []
                 mts = 0
                 age = time.time()
                 # Iterate over installed GPG keys and check their validity using DNSSEC
@@ -405,14 +414,15 @@ class Base(object):
                         logger.debug(_("%s: using metadata from %s."), r.id,
                                      dnf.util.normalize_time(
                                          r._repo.getMaxTimestamp()))
-                    except dnf.exceptions.RepoError as e:
+                    except dnf.exceptions.RepoError:
                         r._repo.expire()
                         if r.skip_if_unavailable is False:
                             raise
-                        errors.append(e)
+                        error_repos.append(r.id)
                         r.disable()
-                for e in errors:
-                    logger.warning(_("%s, ignoring this repo."), e)
+                if error_repos:
+                    logger.warning(
+                        _("Ignoring repositories: %s"), ', '.join(error_repos))
                 if self.repos._any_enabled():
                     if age != 0 and mts != 0:
                         logger.info(_("Last metadata expiration check: %s ago on %s."),
@@ -500,7 +510,8 @@ class Base(object):
             if self._sack and self._moduleContainer:
                 # sack must be set to enable operations on moduleContainer
                 self._moduleContainer.rollback()
-            self.history.close()
+            if self._history is not None:
+                self.history.close()
             self._comps_trans = dnf.comps.TransactionBunch()
             self._transaction = None
 
@@ -794,11 +805,24 @@ class Base(object):
         self._moduleContainer.save()
 
         if not self.transaction:
-            # TODO: no packages changed, but a comps change to be commited
-            # TODO: -> need to detect the change properly and store it to swdb
-#            if self.history.group_active():
+            # packages changed, but a comps change to be commited
+            if self._history and (self._history.group or self._history.env):
+                cmdline = None
+                if hasattr(self, 'args') and self.args:
+                    cmdline = ' '.join(self.args)
+                elif hasattr(self, 'cmds') and self.cmds:
+                    cmdline = ' '.join(self.cmds)
+                old = self.history.last()
+                if old is None:
+                    rpmdb_version = self.sack._rpmdb_version()
+                else:
+                    rpmdb_version = old.end_rpmdb_version
+
+                self.history.beg(rpmdb_version, [], [], cmdline)
+                self.history.end(rpmdb_version)
+            self._plugins.run_pre_transaction()
+            self._plugins.run_transaction()
             self._trans_success = True
-#                self.history.group.commit()
             return
 
         tid = None
@@ -859,8 +883,7 @@ class Base(object):
         timer()
         self._plugins.unload_removed_plugins(self.transaction)
         self._plugins.run_transaction()
-#        if self.history.group_active() and self._trans_success:
-#            self.history.group.commit()
+
         return tid
 
     def _trans_error_summary(self, errstring):
@@ -2027,7 +2050,7 @@ class Base(object):
                     done = True
 
             if not done:
-                raise dnf.exceptions.Error(_('No packages marked for removal.'))
+                logger.warning(_('No packages marked for removal.'))
 
         else:
             pkgs = self.sack.query()._unneeded(self.history.swdb,

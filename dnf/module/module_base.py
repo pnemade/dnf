@@ -31,6 +31,7 @@ STATE_ENABLED = libdnf.module.ModulePackageContainer.ModuleState_ENABLED
 STATE_DISABLED = libdnf.module.ModulePackageContainer.ModuleState_DISABLED
 STATE_UNKNOWN = libdnf.module.ModulePackageContainer.ModuleState_UNKNOWN
 MODULE_TABLE_HINT = _("\n\nHint: [d]efault, [e]nabled, [x]disabled, [i]nstalled")
+MODULE_INFO_TABLE_HINT = _("\n\nHint: [d]efault, [e]nabled, [x]disabled, [i]nstalled, [a]ctive")
 
 class ModuleBase(object):
 
@@ -76,7 +77,7 @@ class ModuleBase(object):
                         profiles.extend(latest_module.getProfiles(nsvcap.profile))
                         if not profiles:
                             logger.error(_("Unable to match profile in argument {}").format(spec))
-                            error_specs.append(spec)
+                            no_match_specs.append(spec)
                             continue
                     else:
                         profiles_strings = self.base._moduleContainer.getDefaultProfiles(
@@ -100,6 +101,12 @@ class ModuleBase(object):
                         install_set_artefacts.update(module.getArtifacts())
         install_base_query = self.base.sack.query().filterm(
             nevra_strict=install_set_artefacts).apply()
+
+        # add hot-fix packages
+        hot_fix_repos = [i.id for i in self.base.repos.iter_enabled() if i.module_hotfixes]
+        hotfix_packages = self.base.sack.query().filterm(reponame=hot_fix_repos).filterm(
+            name=install_dict.keys())
+        install_base_query = install_base_query.union(hotfix_packages)
 
         for pkg_name, set_specs in install_dict.items():
             query = install_base_query.filter(name=pkg_name)
@@ -147,21 +154,21 @@ class ModuleBase(object):
                     upgrade_package_set.update(self._get_package_name_set_and_remove_profiles(
                         module_list_from_dict, nsvcap))
                     latest_module = self._get_latest(module_list_from_dict)
-                    installed_profiles_strings = set(
-                        self.base._moduleContainer.getInstalledProfiles(latest_module.getName()))
-                    if not installed_profiles_strings:
-                        continue
                     if nsvcap.profile:
                         profiles_set = latest_module.getProfiles(nsvcap.profile)
                         if not profiles_set:
                             continue
                         for profile in profiles_set:
-                            if profile.getName() in installed_profiles_strings:
-                                upgrade_package_set.update(profile.getContent())
+                            upgrade_package_set.update(profile.getContent())
                     else:
-                        for profile_string in installed_profiles_strings:
-                            for profile in latest_module.getProfiles(profile_string):
-                                upgrade_package_set.update(profile.getContent())
+                        for profile in latest_module.getProfiles():
+                            upgrade_package_set.update(profile.getContent())
+                        for artefact in latest_module.getArtifacts():
+                            subj = hawkey.Subject(artefact)
+                            for nevra_obj in subj.get_nevra_possibilities(
+                                    forms=[hawkey.FORM_NEVRA]):
+                                upgrade_package_set.add(nevra_obj.name)
+
             if not upgrade_package_set:
                 logger.error(_("Unable to match profile in argument {}").format(spec))
             query = self.base.sack.query().available().filterm(name=upgrade_package_set)
@@ -270,15 +277,23 @@ class ModuleBase(object):
                 logger.error(ucd(e))
                 logger.error(_("Unable to resolve argument {}").format(spec))
         hot_fix_repos = [i.id for i in self.base.repos.iter_enabled() if i.module_hotfixes]
-        solver_errors = self.base.sack.filter_modules(
-            self.base._moduleContainer, hot_fix_repos, self.base.conf.installroot, None,
-            self.base.conf.debug_solver
-        )
-        for nsvcap, moduleDict in module_dicts.values():
+        try:
+            solver_errors = self.base.sack.filter_modules(
+                self.base._moduleContainer, hot_fix_repos, self.base.conf.installroot,
+                self.base.conf.module_platform_id,
+                self.base.conf.debug_solver)
+        except hawkey.Exception as e:
+            raise dnf.exceptions.Error(ucd(e))
+        for spec, (nsvcap, moduleDict) in module_dicts.items():
             for streamDict in moduleDict.values():
                 for modules in streamDict.values():
-                    self.base._moduleContainer.enableDependencyTree(
-                        libdnf.module.VectorModulePackagePtr(modules))
+                    try:
+                        self.base._moduleContainer.enableDependencyTree(
+                            libdnf.module.VectorModulePackagePtr(modules))
+                    except RuntimeError as e:
+                        error_spec.append(spec)
+                        logger.error(ucd(e))
+                        logger.error(_("Unable to resolve argument {}").format(spec))
         return no_match_specs, error_spec, solver_errors, module_dicts
 
     def _modules_reset_or_disable(self, module_specs, to_state):
@@ -289,9 +304,9 @@ class ModuleBase(object):
                 logger.error(_("Unable to resolve argument {}").format(spec))
                 no_match_specs.append(spec)
                 continue
-            if nsvcap.profile:
-                logger.info(_("Ignoring unnecessary profile: '{}/{}'").format(
-                    nsvcap.name, nsvcap.profile))
+            if nsvcap.stream or nsvcap.version or nsvcap.context or nsvcap.arch or nsvcap.profile:
+                logger.info(_("Only module name required. "
+                              "Ignoring unneeded information in argument: '{}'").format(spec))
             module_names = set()
             for module in module_list:
                 module_names.add(module.getName())
@@ -302,10 +317,13 @@ class ModuleBase(object):
                     self.base._moduleContainer.disable(name)
 
         hot_fix_repos = [i.id for i in self.base.repos.iter_enabled() if i.module_hotfixes]
-        solver_errors = self.base.sack.filter_modules(
-            self.base._moduleContainer, hot_fix_repos, self.base.conf.installroot,
-            self.base.conf.module_platform_id, update_only=True,
-            debugsolver=self.base.conf.debug_solver)
+        try:
+            solver_errors = self.base.sack.filter_modules(
+                self.base._moduleContainer, hot_fix_repos, self.base.conf.installroot,
+                self.base.conf.module_platform_id, update_only=True,
+                debugsolver=self.base.conf.debug_solver)
+        except hawkey.Exception as e:
+            raise dnf.exceptions.Error(ucd(e))
         return no_match_specs, solver_errors
 
     def _get_package_name_set_and_remove_profiles(self, module_list, nsvcap, remove=False):
@@ -367,7 +385,7 @@ class ModuleBase(object):
                 else ", "
         return profiles_str[:-2]
 
-    def _module_strs_formater(self, modulePackage):
+    def _module_strs_formater(self, modulePackage, markActive=False):
         default_str = ""
         enabled_str = ""
         disabled_str = ""
@@ -382,6 +400,10 @@ class ModuleBase(object):
             if not default_str:
                 disabled_str = " "
             disabled_str += "[x]"
+        if markActive and self.base._moduleContainer.isModuleActive(modulePackage):
+            if not default_str:
+                disabled_str = " "
+            disabled_str += "[a]"
         return default_str, enabled_str, disabled_str
 
     def _get_info(self, module_specs):
@@ -396,7 +418,8 @@ class ModuleBase(object):
                 logger.info(_("Ignoring unnecessary profile: '{}/{}'").format(
                     nsvcap.name, nsvcap.profile))
             for modulePackage in module_list:
-                default_str, enabled_str, disabled_str = self._module_strs_formater(modulePackage)
+                default_str, enabled_str, disabled_str = self._module_strs_formater(
+                    modulePackage, markActive=True)
                 default_profiles = self.base._moduleContainer.getDefaultProfiles(
                     modulePackage.getName(), modulePackage.getStream())
 
@@ -418,7 +441,7 @@ class ModuleBase(object):
                 output.add(self._create_simple_table(lines).toString())
         str_table = "\n\n".join(sorted(output))
         if str_table:
-            str_table += MODULE_TABLE_HINT
+            str_table += MODULE_INFO_TABLE_HINT
         return str_table
 
     @staticmethod
@@ -521,7 +544,8 @@ class ModuleBase(object):
                     else:
                         modulePackage = nameStreamArch[0]
                 line = table.newLine()
-                default_str, enabled_str, disabled_str = self._module_strs_formater(modulePackage)
+                default_str, enabled_str, disabled_str = self._module_strs_formater(
+                    modulePackage, markActive=False)
                 default_profiles = self.base._moduleContainer.getDefaultProfiles(
                     modulePackage.getName(), modulePackage.getStream())
                 profiles_str = self._profile_report_formater(modulePackage, default_profiles,

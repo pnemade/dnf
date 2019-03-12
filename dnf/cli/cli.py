@@ -24,29 +24,43 @@ Command line interface yum class and related.
 from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import unicode_literals
-from . import output
-from dnf.cli import CliError
-from dnf.i18n import ucd, _
 
 try:
     from collections.abc import Sequence
 except ImportError:
     from collections import Sequence
+import datetime
+import logging
+import operator
+import os
+import random
+import rpm
+import sys
+import time
+
+import hawkey
+import libdnf.transaction
+
+from . import output
+from dnf.cli import CliError
+from dnf.i18n import ucd, _
 import dnf
+import dnf.cli.aliases
 import dnf.cli.commands
+import dnf.cli.commands.alias
 import dnf.cli.commands.autoremove
 import dnf.cli.commands.check
 import dnf.cli.commands.clean
 import dnf.cli.commands.deplist
 import dnf.cli.commands.distrosync
 import dnf.cli.commands.downgrade
-import dnf.cli.commands.remove
 import dnf.cli.commands.group
 import dnf.cli.commands.install
 import dnf.cli.commands.makecache
 import dnf.cli.commands.mark
 import dnf.cli.commands.module
 import dnf.cli.commands.reinstall
+import dnf.cli.commands.remove
 import dnf.cli.commands.repolist
 import dnf.cli.commands.repoquery
 import dnf.cli.commands.search
@@ -56,31 +70,21 @@ import dnf.cli.commands.updateinfo
 import dnf.cli.commands.upgrade
 import dnf.cli.commands.upgrademinimal
 import dnf.cli.demand
+import dnf.cli.format
 import dnf.cli.option_parser
 import dnf.conf
 import dnf.conf.substitutions
 import dnf.const
+import dnf.db.history
 import dnf.exceptions
-import dnf.cli.format
 import dnf.logging
-import dnf.plugin
 import dnf.persistor
+import dnf.plugin
 import dnf.rpm
 import dnf.sack
 import dnf.transaction
 import dnf.util
 import dnf.yum.misc
-import hawkey
-import logging
-import operator
-import os
-import random
-import sys
-import time
-
-import libdnf.transaction
-import dnf.db.history
-import dnf.util
 
 logger = logging.getLogger('dnf')
 
@@ -154,21 +158,6 @@ class BaseCli(dnf.Base):
         :return: history database transaction ID or None
         """
 
-        # Reports about excludes and includes (but not from plugins)
-        if self.conf.excludepkgs:
-            logger.debug(_('Excludes in dnf.conf: ') +
-                         ", ".join(sorted(set(self.conf.excludepkgs))))
-        if self.conf.includepkgs:
-            logger.debug(_('Includes in dnf.conf: ') +
-                         ", ".join(sorted(set(self.conf.includepkgs))))
-        for repo in self.repos.iter_enabled():
-            if repo.excludepkgs:
-                logger.debug(_('Excludes in repo ') + repo.id + ": " +
-                             ", ".join(sorted(set(repo.excludepkgs))))
-            if repo.includepkgs:
-                logger.debug(_('Includes in repo ') + repo.id + ": " +
-                             ", ".join(sorted(set(repo.includepkgs))))
-
         trans = self.transaction
         pkg_str = self.output.list_transaction(trans)
         if pkg_str:
@@ -196,7 +185,8 @@ class BaseCli(dnf.Base):
             else:
                 self.output.reportDownloadSize(install_pkgs, install_only)
 
-        if trans or self._moduleContainer.isChanged():
+        if trans or self._moduleContainer.isChanged() or \
+                (self._history and (self._history.group or self._history.env)):
             # confirm with user
             if self.conf.downloadonly:
                 logger.info(_("DNF will only download packages for the transaction."))
@@ -289,7 +279,41 @@ class BaseCli(dnf.Base):
                 logger.critical(msg)
             raise dnf.exceptions.Error(_("GPG check FAILED"))
 
-    def check_updates(self, patterns=(), reponame=None, print_=True):
+    def latest_changelogs(self, package):
+        """Return list of changelogs for package newer then installed version"""
+        newest = None
+        # find the date of the newest changelog for installed version of package
+        # stored in rpmdb
+        for mi in self._rpmconn.readonly_ts.dbMatch('name', package.name):
+            changelogtimes = mi[rpm.RPMTAG_CHANGELOGTIME]
+            if changelogtimes:
+                newest = datetime.date.fromtimestamp(changelogtimes[0])
+                break
+        chlogs = [chlog for chlog in package.changelogs
+                  if newest is None or chlog['timestamp'] > newest]
+        return chlogs
+
+    def format_changelog(self, changelog):
+        """Return changelog formated as in spec file"""
+        chlog_str = '* %s %s\n%s\n' % (
+            changelog['timestamp'].strftime("%a %b %d %X %Y"),
+            dnf.i18n.ucd(changelog['author']),
+            dnf.i18n.ucd(changelog['text']))
+        return chlog_str
+
+    def print_changelogs(self, packages):
+        # group packages by src.rpm to avoid showing duplicate changelogs
+        bysrpm = dict()
+        for p in packages:
+            # there are packeges without source_name, use name then.
+            bysrpm.setdefault(p.source_name or p.name, []).append(p)
+        for source_name in sorted(bysrpm.keys()):
+            bin_packages = bysrpm[source_name]
+            print(_("Changelogs for {}").format(', '.join([str(pkg) for pkg in bin_packages])))
+            for chl in self.latest_changelogs(bin_packages[0]):
+                print(self.format_changelog(chl))
+
+    def check_updates(self, patterns=(), reponame=None, print_=True, changelogs=False):
         """Check updates matching given *patterns* in selected repository."""
         ypl = self.returnPkgLists('upgrades', patterns, reponame=reponame)
         if self.conf.obsoletes or self.conf.verbose:
@@ -314,6 +338,9 @@ class BaseCli(dnf.Base):
                 self.output.listPkgs(ypl.updates, '', outputType='list',
                               highlight_na=local_pkgs, columns=columns,
                               highlight_modes={'=' : cul, 'not in' : cur})
+                if changelogs:
+                    self.print_changelogs(ypl.updates)
+
             if len(ypl.obsoletes) > 0:
                 print(_('Obsoleting Packages'))
                 # The tuple is (newPkg, oldPkg) ... so sort by new
@@ -510,7 +537,9 @@ class BaseCli(dnf.Base):
         ypl = self._do_package_lists(
             pkgnarrow, patterns, ignore_case=True, reponame=reponame)
         if self.conf.showdupesfromrepos:
-            ypl.available += ypl.reinstall_available
+            for pkg in ypl.reinstall_available:
+                if not pkg.installed and not done_hidden_available:
+                    ypl.available.append(pkg)
 
         if installed_available:
             ypl.hidden_available = ypl.available
@@ -669,6 +698,7 @@ class Cli(object):
         self.command = None
         self.demands = dnf.cli.demand.DemandSheet() #:cli
 
+        self.register_command(dnf.cli.commands.alias.AliasCommand)
         self.register_command(dnf.cli.commands.autoremove.AutoremoveCommand)
         self.register_command(dnf.cli.commands.check.CheckCommand)
         self.register_command(dnf.cli.commands.clean.CleanCommand)
@@ -811,6 +841,9 @@ class Cli(object):
         :param args: a list of command line arguments
         :param option_parser: a class for parsing cli options
         """
+        aliases = dnf.cli.aliases.Aliases()
+        args = aliases.resolve(args)
+
         self.optparser = dnf.cli.option_parser.OptionParser() \
             if option_parser is None else option_parser
         opts = self.optparser.parse_main_args(args)
@@ -830,10 +863,11 @@ class Cli(object):
 
         # Read up configuration options and initialize plugins
         try:
-            self.base.conf._configure_from_options(opts)
             if opts.cacheonly:
-                self.base.conf.cachedir = self.base.conf.system_cachedir
+                self.base.conf._set_value("cachedir", self.base.conf.system_cachedir,
+                                          dnf.conf.PRIO_DEFAULT)
                 self.demands.cacheonly = True
+            self.base.conf._configure_from_options(opts)
             self._read_conf_file(opts.releasever)
             if 'arch' in opts:
                 self.base.conf.arch = opts.arch
@@ -853,6 +887,11 @@ class Cli(object):
                                   'or download or system-upgrade command.')
                 )
                 sys.exit(1)
+        if (opts.set_enabled or opts.set_disabled) and opts.command != 'config-manager':
+            logger.critical(
+                _('--enable, --set-enabled and --disable, --set-disabled '
+                  'must be used with config-manager command.'))
+            sys.exit(1)
 
         if opts.sleeptime is not None:
             time.sleep(random.randrange(opts.sleeptime * 60))
@@ -873,7 +912,7 @@ class Cli(object):
         # save our original args out
         self.base.args = args
         # save out as a nice command string
-        self.cmdstring = dnf.const.PROGRAM_NAME + ' '
+        self.cmdstring = self.optparser.prog + ' '
         for arg in self.base.args:
             self.cmdstring += '%s ' % arg
 
@@ -919,6 +958,24 @@ class Cli(object):
 
         if self.base.conf.color != 'auto':
             self.base.output.term.reinit(color=self.base.conf.color)
+
+        if rpm.expandMacro('%_pkgverify_level') in ('signature', 'all'):
+            forcing = False
+            for repo in self.base.repos.iter_enabled():
+                if repo.gpgcheck:
+                    continue
+                repo.gpgcheck = True
+                forcing = True
+            if not self.base.conf.localpkg_gpgcheck:
+                self.base.conf.localpkg_gpgcheck = True
+                forcing = True
+            if forcing:
+                logger.warning(
+                    _("Warning: Enforcing GPG signature check globally "
+                      "as per active RPM security policy (see 'gpgcheck' in "
+                      "dnf.conf(5) for how to squelch this message)"
+                      )
+                )
 
     def _read_conf_file(self, releasever=None):
         timer = dnf.logging.Timer('config')
@@ -1052,4 +1109,20 @@ class Cli(object):
             2 = we've got work yet to do, onto the next stage
         """
         self._process_demands()
+
+        # Reports about excludes and includes (but not from plugins)
+        if self.base.conf.excludepkgs:
+            logger.debug(
+                _('Excludes in dnf.conf: ') + ", ".join(sorted(set(self.base.conf.excludepkgs))))
+        if self.base.conf.includepkgs:
+            logger.debug(
+                _('Includes in dnf.conf: ') + ", ".join(sorted(set(self.base.conf.includepkgs))))
+        for repo in self.base.repos.iter_enabled():
+            if repo.excludepkgs:
+                logger.debug(_('Excludes in repo ') + repo.id + ": "
+                             + ", ".join(sorted(set(repo.excludepkgs))))
+            if repo.includepkgs:
+                logger.debug(_('Includes in repo ') + repo.id + ": "
+                             + ", ".join(sorted(set(repo.includepkgs))))
+
         return self.command.run()

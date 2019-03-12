@@ -30,7 +30,7 @@ Configurable settings of the :class:`dnf.Base` object are stored into a :class:`
   
   .. attribute:: best
 
-    Boolean option, ``True`` instructs the solver to either use a package with the highest available version or fail. On ``False``, do not fail if the latest version can not be installed. Default is ``False``.
+    Boolean option, ``True`` instructs the solver to either use a package with the highest available version or fail. On ``False``, do not fail if the latest version can not be installed. Default is ``True``.
 
   .. attribute:: cachedir
 
@@ -111,6 +111,11 @@ Configurable settings of the :class:`dnf.Base` object are stored into a :class:`
   .. attribute:: logdir
 
     Directory where the log files will be stored. Default is ``"/var/log"``.
+
+  .. attribute:: module_platform_id
+
+    Set this to $name:$stream to override PLATFORM_ID detected from ``/etc/os-release``.
+    It is necessary to perform a system upgrade and switch to a new platform.
 
   .. attribute:: multilib_policy
 

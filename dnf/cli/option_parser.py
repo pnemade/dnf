@@ -90,11 +90,6 @@ class OptionParser(argparse.ArgumentParser):
     class _SetoptsCallback(argparse.Action):
         """ Parse setopts arguments and put them into main_<setopts>
             and repo_<setopts>."""
-        def __init__(self, *args, **kwargs):
-            super(OptionParser._SetoptsCallback, self).__init__(*args, **kwargs)
-            self.repoopts = {}
-            self.mainopts = argparse.Namespace()
-
         def __call__(self, parser, namespace, values, opt_str):
             vals = values.split('=')
             if len(vals) > 2:
@@ -108,14 +103,19 @@ class OptionParser(argparse.ArgumentParser):
             if period != -1:
                 repo = k[:period]
                 k = k[period+1:]
-                if repo not in self.repoopts:
-                    self.repoopts[repo] = argparse.Namespace()
-                setattr(self.repoopts[repo], k, v)
-                setattr(namespace, 'repo_' + self.dest, self.repoopts)
+                if hasattr(namespace, 'repo_setopts'):
+                    repoopts = namespace.repo_setopts
+                else:
+                    repoopts = {}
+                repoopts.setdefault(repo, {}).setdefault(k, []).append(v)
+                setattr(namespace, 'repo_' + self.dest, repoopts)
             else:
-                setattr(self.mainopts, k, v)
-                setattr(namespace, k, v)
-                setattr(namespace, 'main_' + self.dest, self.mainopts)
+                if hasattr(namespace, 'main_setopts'):
+                    mainopts = namespace.main_setopts
+                else:
+                    mainopts = {}
+                mainopts.setdefault(k, []).append(v)
+                setattr(namespace, 'main_' + self.dest, mainopts)
 
     class ParseSpecGroupFileCallback(argparse.Action):
         def __call__(self, parser, namespace, values, opt_str):
@@ -152,8 +152,7 @@ class OptionParser(argparse.ArgumentParser):
         """ Standard options known to all dnf subcommands. """
         # All defaults need to be a None, so we can always tell whether the user
         # has set something or whether we are getting a default.
-        main_parser = argparse.ArgumentParser(dnf.const.PROGRAM_NAME,
-                                              add_help=False)
+        main_parser = argparse.ArgumentParser(add_help=False)
         main_parser._optionals.title = _("Optional arguments")
         main_parser.add_argument("-c", "--config", dest="config_file_path",
                                  default=None, metavar='[config file]',
@@ -197,10 +196,11 @@ class OptionParser(argparse.ArgumentParser):
                                  default=None,
                                  help=_('allow erasing of installed packages to '
                                         'resolve dependencies'))
-        main_parser.add_argument("-b", "--best", action="store_true",
-                                 default=None,
-                                 help=_("try the best available package "
-                                        "versions in transactions."))
+        best_group = main_parser.add_mutually_exclusive_group()
+        best_group.add_argument("-b", "--best", action="store_true", dest='best', default=None,
+                                help=_("try the best available package versions in transactions."))
+        best_group.add_argument("--nobest", action="store_false", dest='best',
+                                help=_("do not limit the transaction to the best candidate"))
         main_parser.add_argument("-C", "--cacheonly", dest="cacheonly",
                                  action="store_true", default=None,
                                  help=_("run entirely from system cache, "
@@ -246,6 +246,15 @@ class OptionParser(argparse.ArgumentParser):
                                 action=self._SplitCallback, default=[],
                                 help=_('enable just specific repositories by an id or a glob, '
                                        'can be specified multiple times'))
+        enable_group = main_parser.add_mutually_exclusive_group()
+        enable_group.add_argument("--enable", "--set-enabled", default=False,
+                                  dest="set_enabled", action="store_true",
+                                  help=_("enable repos with config-manager "
+                                         "command (automatically saves)"))
+        enable_group.add_argument("--disable", "--set-disabled", default=False,
+                                  dest="set_disabled", action="store_true",
+                                  help=_("disable repos with config-manager "
+                                         "command (automatically saves)"))
         main_parser.add_argument("-x", "--exclude", "--excludepkgs", default=[],
                                  dest='excludepkgs', action=self._SplitCallback,
                                  help=_("exclude packages by name or glob"),
@@ -265,7 +274,7 @@ class OptionParser(argparse.ArgumentParser):
                                  help=_("disable removal of dependencies that are no longer used"))
         main_parser.add_argument("--nogpgcheck", action="store_false",
                                  default=None, dest='gpgcheck',
-                                 help=_("disable gpg signature checking"))
+                                 help=_("disable gpg signature checking (if RPM policy allows)"))
         main_parser.add_argument("--color", dest="color", default=None,
                                  help=_("control whether color is used"))
         main_parser.add_argument("--refresh", dest="freshest_metadata",
@@ -299,18 +308,19 @@ class OptionParser(argparse.ArgumentParser):
                                  help=_("Include security relevant packages, "
                                         "in updates"))
         main_parser.add_argument("--advisory", "--advisories", dest="advisory",
-                                 default=[], action="append",
+                                 default=[], action=self._SplitCallback,
                                  help=_("Include packages needed to fix the "
                                         "given advisory, in updates"))
-        main_parser.add_argument("--bzs", default=[], dest="bugzilla",
-                                 action="append", help=_(
+        main_parser.add_argument("--bz", "--bzs", default=[], dest="bugzilla",
+                                 action=self._SplitCallback, help=_(
                 "Include packages needed to fix the given BZ, in updates"))
-        main_parser.add_argument("--cves", default=[], action="append", help=_(
-            "Include packages needed to fix the given CVE, in updates"))
+        main_parser.add_argument("--cve", "--cves", default=[], dest="cves",
+                                 action=self._SplitCallback,
+                                 help=_("Include packages needed to fix the given CVE, in updates"))
         main_parser.add_argument(
             "--sec-severity", "--secseverity",
             choices=['Critical', 'Important', 'Moderate', 'Low'], default=[],
-            dest="severity", action="append", help=_(
+            dest="severity", action=self._SplitCallback, help=_(
                 "Include security relevant packages matching the severity, "
                 "in updates"))
         main_parser.add_argument("--forcearch", metavar="ARCH",
@@ -321,7 +331,8 @@ class OptionParser(argparse.ArgumentParser):
         return main_parser
 
     def _command_parser(self, command):
-        prog = "%s %s" % (dnf.const.PROGRAM_NAME, command._basecmd)
+        parser = argparse.ArgumentParser()
+        prog = "%s %s" % (parser.prog, command._basecmd)
         super(OptionParser, self).__init__(prog, add_help=False,
                                            parents=[self.main_parser],
                                            description=command.summary)
@@ -353,8 +364,8 @@ class OptionParser(argparse.ArgumentParser):
         """ get the usage information to show the user. """
         desc = {'main': _('List of Main Commands:'),
                 'plugin': _('List of Plugin Commands:')}
-        name = dnf.const.PROGRAM_NAME
-        usage = '%s [options] COMMAND\n' % name
+        parser = argparse.ArgumentParser()
+        usage = '%s [options] COMMAND\n' % parser.prog
         for grp in ['main', 'plugin']:
             if not grp in self._cmd_groups:
                 # dont add plugin usage, if we dont have plugins
@@ -374,7 +385,7 @@ class OptionParser(argparse.ArgumentParser):
             return self.command_arg_parser.add_argument(*args, **kwargs)
 
     def parse_main_args(self, args):
-        parser = argparse.ArgumentParser(dnf.const.PROGRAM_NAME, add_help=False,
+        parser = argparse.ArgumentParser(add_help=False,
                                          parents=[self.main_parser])
         parser.add_argument('command', nargs='?', help=argparse.SUPPRESS)
         namespace, _unused_args = parser.parse_known_args(args)

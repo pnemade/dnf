@@ -20,6 +20,98 @@
 ###################
 
 ===================
+4.2.1 Release Notes
+===================
+
+* Do not allow direct module switch (RhBug:1669491)
+* Use improved config parser that preserves order of data
+* Fix ``alias list`` command (RhBug:1666325)
+* Postpone yum conflict to F31
+* Update documentation: implemented plugins; options; deprecated commands (RhBug:1670835,1673278) 
+* Support zchunk (".zck") compression
+* Fix behavior  of ``--bz`` option when specifying more values
+* Follow RPM security policy for package verification
+* Update modules regardless of installed profiles
+* Add protection of yum package (RhBug:1639363)
+* Fix ``list --showduplicates`` (RhBug:1655605)
+
+Bugs fixed in 4.2.1:
+
+* :rhbug:`1655605`
+* :rhbug:`1669247`
+* :rhbug:`1670835`
+* :rhbug:`1673278`
+* :rhbug:`1677640`
+* :rhbug:`1597182`
+* :rhbug:`1666325`
+* :rhbug:`1678689`
+* :rhbug:`1669491`
+
+===================
+4.1.0 Release Notes
+===================
+
+* Allow to enable modules that break default modules (RhBug:1648839)
+* Enhance documentation - API examples
+* Add best as default behavior (RhBug:1670776,1671683)
+* Add --nobest option
+
+Bugs fixed in 4.1.0:
+
+* :rhbug:`1585509`
+* :rhbug:`1672432`
+* :rhbug:`1509393`
+* :rhbug:`1667423`
+* :rhbug:`1656726`
+* :rhbug:`1671683`
+* :rhbug:`1667426`
+
+====================
+4.0.10 Release Notes
+====================
+
+* Updated difference YUM vs. DNF for yum-updateonboot
+* Added new command ``dnf alias [options] [list|add|delete] [<name>...]`` to allow the user to
+  define and manage a list of aliases
+* Enhanced documentation
+* Unifying return codes for remove operations
+* [transaction] Make transaction content available for commands
+* Triggering transaction hooks if no transaction (RhBug:1650157)
+* Add hotfix packages to install pool (RhBug:1654738)
+* Report group operation in transaction table
+* [sack] Change algorithm to calculate rpmdb_version
+
+Bugs fixed in 4.0.10:
+
+* :rhbug:`1654738`
+* :rhbug:`1495482`
+
+===================
+4.0.9 Release Notes
+===================
+
+* Added :meth:`dnf.repo.Repo.get_http_headers`
+* Added :meth:`dnf.repo.Repo.set_http_headers`
+* Added :meth:`dnf.repo.Repo.add_metadata_type_to_download`
+* Added :meth:`dnf.repo.Repo.get_metadata_path`
+* Added :meth:`dnf.repo.Repo.get_metadata_content`
+* Added --changelogs option for check-update command
+* [module] Add information about active modules
+* Hide messages created only for logging
+* Enhanced --setopt option
+* [module] Fix dnf remove @<module>
+* [transaction] Make transaction content available for plugins
+
+Bugs fixed in 4.0.9:
+
+* :rhbug:`1541832`
+* :rhbug:`1642796`
+* :rhbug:`1637148`
+* :rhbug:`1639998`
+* :rhbug:`1615164`
+* :rhbug:`1636480`
+
+===================
 4.0.4 Release Notes
 ===================
 

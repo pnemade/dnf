@@ -2,10 +2,13 @@
 Description=dnf-automatic timer
 # See comment in dnf-makecache.service
 ConditionPathExists=!/run/ostree-booted
+Wants=network-online.target
 
 [Timer]
 OnBootSec=1h
 OnUnitInactiveSec=1d
+RandomizedDelaySec=5m
+AccuracySec=1s
 
 [Install]
-WantedBy=basic.target
+WantedBy=multi-user.target

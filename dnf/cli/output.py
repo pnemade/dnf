@@ -25,7 +25,7 @@ import libdnf.transaction
 
 from copy import deepcopy
 from dnf.cli.format import format_number, format_time
-from dnf.i18n import _, C_, P_, ucd, fill_exact_width, textwrap_fill, exact_width
+from dnf.i18n import _, C_, P_, ucd, fill_exact_width, textwrap_fill, exact_width, select_short_long
 from dnf.pycomp import xrange, basestring, long, unicode
 from dnf.yum.rpmtrans import LoggingTransactionDisplay
 from dnf.db.history import MergedTransactionWrapper
@@ -490,28 +490,49 @@ class Output(object):
 
         output_list = []
         (hibeg, hiend) = self._highlight(highlight)
-        output_list.append(format_key_val(_("Name"), "%s%s%s" % (hibeg, pkg.name, hiend)))
+        # Translators: This is abbreviated 'Name'. Should be no longer
+        # than 12 characters. You can use the full version if it is short
+        # enough in your language.
+        key = select_short_long(12, C_("short", "Name"),
+                                    C_("long", "Name"))
+        output_list.append(format_key_val(key,
+                                          "%s%s%s" % (hibeg, pkg.name, hiend)))
         if pkg.epoch:
+            # Translators: This message should be no longer than 12 characters.
             output_list.append(format_key_val(_("Epoch"), pkg.epoch))
-        output_list.append(format_key_val(_("Version"), pkg.version))
+        key = select_short_long(12, C_("short", "Version"),
+                                    C_("long", "Version"))
+        output_list.append(format_key_val(key, pkg.version))
+        # Translators: This message should be no longer than 12 characters.
         output_list.append(format_key_val(_("Release"), pkg.release))
-        output_list.append(format_key_val(_("Arch"), pkg.arch))
-        output_list.append(format_key_val(_("Size"), format_number(float(pkg._size))))
+        key = select_short_long(12, C_("short", "Arch"),
+                                    C_("long", "Architecture"))
+        output_list.append(format_key_val(key, pkg.arch))
+        key = select_short_long(12, C_("short", "Size"), C_("long", "Size"))
+        output_list.append(format_key_val(key,
+                                          format_number(float(pkg._size))))
+        # Translators: This message should be no longer than 12 characters.
         output_list.append(format_key_val(_("Source"), pkg.sourcerpm))
-        output_list.append(format_key_val(_("Repo"), pkg.repoid))
+        key = select_short_long(12, C_("short", "Repo"),
+                                    C_("long", "Repository"))
+        output_list.append(format_key_val(key, pkg.repoid))
 
         if pkg._from_system:
             history_repo = self.history.repo(pkg)
             if history_repo:
+                # Translators: This message should be no longer than 12 chars.
                 output_list.append(format_key_val(_("From repo"), history_repo))
         if self.conf.verbose:
             # :hawkey does not support changelog information
             # print(_("Committer   : %s") % ucd(pkg.committer))
             # print(_("Committime  : %s") % time.ctime(pkg.committime))
+            # Translators: This message should be no longer than 12 characters.
             output_list.append(format_key_val(_("Packager"), pkg.packager))
+            # Translators: This message should be no longer than 12 characters.
             output_list.append(format_key_val(_("Buildtime"),
                                               dnf.util.normalize_time(pkg.buildtime)))
             if pkg.installtime:
+            # Translators: This message should be no longer than 12 characters.
                 output_list.append(format_key_val(_("Install time"),
                                                   dnf.util.normalize_time(pkg.installtime)))
             history_pkg = self.history.package_data(pkg)
@@ -520,12 +541,24 @@ class Output(object):
                     uid = int(history_pkg._item.getInstalledBy())
                 except ValueError: # In case int() fails
                     uid = None
+                # Translators: This message should be no longer than 12 chars.
                 output_list.append(format_key_val(_("Installed by"), self._pwd_ui_username(uid)))
-        output_list.append(format_key_val_fill(_("Summary"), pkg.summary))
+        # Translators: This is abbreviated 'Summary'. Should be no longer
+        # than 12 characters. You can use the full version if it is short
+        # enough in your language.
+        key = select_short_long(12, C_("short", "Summary"),
+                                    C_("long", "Summary"))
+        output_list.append(format_key_val_fill(key, pkg.summary))
         if pkg.url:
             output_list.append(format_key_val(_("URL"), ucd(pkg.url)))
+        # Translators: This message should be no longer than 12 characters.
         output_list.append(format_key_val_fill(_("License"), pkg.license))
-        output_list.append(format_key_val_fill(_("Description"), pkg.description))
+        # Translators: This is abbreviated 'Description'. Should be no longer
+        # than 12 characters. You can use the full version if it is short
+        # enough in your language.
+        key = select_short_long(12, C_("short", "Description"),
+                                    C_("long", "Description"))
+        output_list.append(format_key_val_fill(key, pkg.description))
         return "\n".join(output_list)
 
     def updatesObsoletesList(self, uotup, changetype, columns=None):
@@ -639,7 +672,7 @@ class Output(object):
                         pass
 
             if thingslisted == 0:
-                return 1, ['No packages to list']
+                return 1, [_('No packages to list')]
             return 0, []
 
     def userconfirm(self, msg=None, defaultyes_msg=None):
@@ -1002,15 +1035,19 @@ class Output(object):
             out[0:0] = self._banner(col_data, (_('Group'), _('Packages'), '', ''))
         return '\n'.join(out)
 
-    def _skipped_packages(self, upgrade_type=False):
+    def _skipped_packages(self, report_problems):
         """returns set of conflicting packages and set of packages with broken dependency that would
         be additionally installed when --best and --allowerasing"""
+        if self.base._goal.actions & (hawkey.INSTALL | hawkey.UPGRADE | hawkey.UPGRADE_ALL):
+            best = True
+        else:
+            best = False
         ng = deepcopy(self.base._goal)
         params = {"allow_uninstall": self.base._allow_erasing,
-                  "force_best": upgrade_type,
-                  "ignore_weak": not upgrade_type}
+                  "force_best": best,
+                  "ignore_weak": True}
         ret = ng.run(**params)
-        if not ret:
+        if not ret and report_problems:
             msg = dnf.util._format_resolve_problems(ng.problem_rules())
             logger.warning(msg)
         problem_conflicts = set(ng.problem_conflicts(available=True))
@@ -1103,7 +1140,7 @@ class Output(object):
 
         installedProfiles = sorted(dict(self.base._moduleContainer.getInstalledProfiles()).items())
         if installedProfiles:
-            action = "Installing module profiles"
+            action = _("Installing module profiles")
             lines = []
             for name, profiles in installedProfiles:
                 for profile in list(profiles):
@@ -1112,7 +1149,7 @@ class Output(object):
 
         removedProfiles = sorted(dict(self.base._moduleContainer.getRemovedProfiles()).items())
         if removedProfiles:
-            action = "Removing module profiles"
+            action = _("Disabling module profiles")
             lines = []
             for name, profiles in removedProfiles:
                 for profile in list(profiles):
@@ -1121,7 +1158,7 @@ class Output(object):
 
         enabledStreams = sorted(dict(self.base._moduleContainer.getEnabledStreams()).items())
         if enabledStreams:
-            action = "Enabling module streams"
+            action = _("Enabling module streams")
             lines = []
             for name, stream in enabledStreams:
                 lines.append((name, "", stream, "", "", "", ""))
@@ -1129,34 +1166,74 @@ class Output(object):
 
         switchedStreams = sorted(dict(self.base._moduleContainer.getSwitchedStreams()).items())
         if switchedStreams:
-            action = "Switching module streams"
+            action = _("Switching module streams")
             lines = []
             for name, stream in switchedStreams:
                 lines.append((name, "", "%s -> %s" % (stream[0], stream[1]), "", "", "", ""))
             pkglist_lines.append((action, lines))
 
-        disabledStreams = sorted(dict(self.base._moduleContainer.getDisabledStreams()).items())
-        if disabledStreams:
-            action = "Disabling module streams"
+        disabledModules = sorted(list(self.base._moduleContainer.getDisabledModules()))
+        if disabledModules:
+            action = _("Disabling modules")
             lines = []
-            for name, stream in disabledStreams:
-                lines.append((name, "", stream, "", "", "", ""))
+            for name in disabledModules:
+                lines.append((name, "", "", "", "", "", ""))
             pkglist_lines.append((action, lines))
 
-        resetStreams = sorted(dict(self.base._moduleContainer.getResetStreams()).items())
-        if resetStreams:
-            action = "Resetting module streams"
+        resetModules = sorted(list(self.base._moduleContainer.getResetModules()))
+        if resetModules:
+            action = _("Resetting modules")
             lines = []
-            for name, stream in resetStreams:
-                lines.append((name, "", stream, "", "", "", ""))
+            for name in resetModules:
+                lines.append((name, "", "", "", "", "", ""))
             pkglist_lines.append((action, lines))
-
+        if self.base._history:
+            install_env_group = self.base._history.env._installed
+            if install_env_group:
+                action = _("Installing Environment Groups")
+                lines = []
+                for group in install_env_group.values():
+                    lines.append((group.getName(), "", "", "", "", "", ""))
+                pkglist_lines.append((action, lines))
+            upgrade_env_group = self.base._history.env._upgraded
+            if upgrade_env_group:
+                action = _("Upgrading Environment Groups")
+                lines = []
+                for group in upgrade_env_group.values():
+                    lines.append((group.getName(), "", "", "", "", "", ""))
+                pkglist_lines.append((action, lines))
+            remove_env_group = self.base._history.env._removed
+            if remove_env_group:
+                action = _("Removing Environment Groups")
+                lines = []
+                for group in remove_env_group.values():
+                    lines.append((group.getName(), "", "", "", "", "", ""))
+                pkglist_lines.append((action, lines))
+            install_group = self.base._history.group._installed
+            if install_group:
+                action = _("Installing Groups")
+                lines = []
+                for group in install_group.values():
+                    lines.append((group.getName(), "", "", "", "", "", ""))
+                pkglist_lines.append((action, lines))
+            upgrade_group = self.base._history.group._upgraded
+            if upgrade_group:
+                action = _("Upgrading Groups")
+                lines = []
+                for group in upgrade_group.values():
+                    lines.append((group.getName(), "", "", "", "", "", ""))
+                pkglist_lines.append((action, lines))
+            remove_group = self.base._history.group._removed
+            if remove_group:
+                action = _("Removing Groups")
+                lines = []
+                for group in remove_group.values():
+                    lines.append((group.getName(), "", "", "", "", "", ""))
+                pkglist_lines.append((action, lines))
         # show skipped conflicting packages
         if not self.conf.best and self.base._goal.actions & forward_actions:
             lines = []
-            upgrade_type = True if self.base._goal.actions & hawkey.UPGRADE | hawkey.UPGRADE_ALL \
-                else False
-            skipped_conflicts, skipped_broken = self._skipped_packages(upgrade_type=upgrade_type)
+            skipped_conflicts, skipped_broken = self._skipped_packages(report_problems=True)
             for pkg in sorted(skipped_conflicts):
                 a_wid = _add_line(lines, data, a_wid, pkg, [])
             recommendations = ["--best"]
@@ -1178,7 +1255,8 @@ class Output(object):
 
             pkglist_lines.append((skip_str, lines))
 
-        if not data['n'] and not self.base._moduleContainer.isChanged():
+        if not data['n'] and not self.base._moduleContainer.isChanged() and not \
+                (self.base._history and (self.base._history.group or self.base._history.env)):
             return u''
         else:
             data = [data['n'], {}, data['v'], data['r'], {}]
@@ -1187,12 +1265,53 @@ class Output(object):
                                        remainder_column=2)
             (n_wid, a_wid, v_wid, r_wid, s_wid) = columns
 
+            # Do not use 'Package' without context. Using context resolves
+            # RhBug 1302935 as a side effect.
+            msg_package = select_short_long(n_wid,
+            # Translators: This is the short version of 'Package'. You can
+            # use the full (unabbreviated) term 'Package' if you think that
+            # the translation to your language is not too long and will
+            # always fit to limited space.
+                                            C_('short', 'Package'),
+            # Translators: This is the full (unabbreviated) term 'Package'.
+                                            C_('long', 'Package'))
+            msg_arch = select_short_long(a_wid,
+            # Translators: This is abbreviated 'Architecture', used when
+            # we have not enough space to display the full word.
+                                         C_('short', 'Arch'),
+            # Translators: This is the full word 'Architecture', used when
+            # we have enough space.
+                                         C_('long', 'Architecture'))
+            msg_version = select_short_long(v_wid,
+            # Translators: This is the short version of 'Version'. You can
+            # use the full (unabbreviated) term 'Version' if you think that
+            # the translation to your language is not too long and will
+            # always fit to limited space.
+                                            C_('short', 'Version'),
+            # Translators: This is the full (unabbreviated) term 'Version'.
+                                            C_('long', 'Version'))
+            msg_repository = select_short_long(r_wid,
+            # Translators: This is abbreviated 'Repository', used when
+            # we have not enough space to display the full word.
+                                               C_('short', 'Repo'),
+            # Translators: This is the full word 'Repository', used when
+            # we have enough space.
+                                               C_('long', 'Repository'))
+            msg_size = select_short_long(s_wid,
+            # Translators: This is the short version of 'Size'. It should
+            # not be longer than 5 characters. If the term 'Size' in your
+            # language is not longer than 5 characters then you can use it
+            # unabbreviated.
+                                         C_('short', 'Size'),
+            # Translators: This is the full (unabbreviated) term 'Size'.
+                                         C_('long', 'Size'))
+
             out = [u"%s\n%s\n%s\n" % ('=' * self.term.columns,
-                                      self.fmtColumns(((P_('Package', 'Packages', 1), -n_wid),
-                                                       (_('Arch'), -a_wid),
-                                                       (_('Version'), -v_wid),
-                                                       (_('Repository'), -r_wid),
-                                                       (_('Size'), s_wid)), u" "),
+                                      self.fmtColumns(((msg_package, -n_wid),
+                                                       (msg_arch, -a_wid),
+                                                       (msg_version, -v_wid),
+                                                       (msg_repository, -r_wid),
+                                                       (msg_size, s_wid)), u" "),
                                       '=' * self.term.columns)]
 
         for (action, lines) in pkglist_lines:
@@ -1310,6 +1429,9 @@ Transaction Summary
 
         out = ''
         list_bunch = _make_lists(transaction, self.base._goal)
+        skipped_conflicts, skipped_broken = self._skipped_packages(report_problems=False)
+        skipped = skipped_conflicts.union(skipped_broken)
+        skipped = sorted(set([str(pkg) for pkg in skipped]))
 
         for (action, tsis) in [(_('Upgraded'), list_bunch.upgraded),
                                (_('Downgraded'), list_bunch.downgraded),
@@ -1318,6 +1440,7 @@ Transaction Summary
                                 list_bunch.installed_weak +
                                 list_bunch.installed_dep),
                                (_('Reinstalled'), list_bunch.reinstalled),
+                               (_('Skipped'), skipped),
                                (_('Removed'), list_bunch.erased +
                                    list_bunch.erased_dep +
                                    list_bunch.erased_clean),
@@ -1590,7 +1713,7 @@ Transaction Summary
         old = self.history.last()
         if old is None:
             logger.critical(_('No transactions'))
-            return 1, ['Failed history info']
+            return 1, [_('Failed history info')]
 
         lasttid = old.tid
         lastdbv = old.end_rpmdb_version
@@ -1606,7 +1729,7 @@ Transaction Summary
 
         if not tids:
             logger.critical(_('No transaction ID, or package, given'))
-            return 1, ['Failed history info']
+            return 1, [_('Failed history info')]
 
         bmtid, emtid = -1, -1
         mobj = None
@@ -1914,7 +2037,8 @@ Transaction Summary
         # REALLY Needs to use columns!
         print(fmt % (fill_exact_width(_("ID"), 6, 6),
                      fill_exact_width(_("Action(s)"), 14, 14),
-                     fill_exact_width(P_("Package", "Packages", 1), 53, 53)))
+        # This is also a hack to resolve RhBug 1302935 correctly.
+                     fill_exact_width(C_("long", "Package"), 53, 53)))
         print("-" * 79)
         fmt = "%6u | %s | %-50s"
         num = 0

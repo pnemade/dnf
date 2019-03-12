@@ -31,6 +31,14 @@ import libdnf
 import dnf.module.module_base
 import dnf.exceptions
 
+
+def report_module_switch(switchedModules):
+    msg1 = _("The operation would result in switching of module '{0}' stream '{1}' to "
+             "stream '{2}'")
+    for moduleName, streams in switchedModules.items():
+        logger.warning(msg1.format(moduleName, streams[0], streams[1]))
+
+
 class ModuleCommand(commands.Command):
     class SubCommand(commands.Command):
 
@@ -67,10 +75,9 @@ class ModuleCommand(commands.Command):
             if output:
                 print(output)
                 return
-            msg = _('No matching Modules to list')
             if self.opts.module_spec:
+                msg = _('No matching Modules to list')
                 raise dnf.exceptions.Error(msg)
-            logger.warning(msg)
 
     class InfoSubCommand(SubCommand):
 
@@ -109,8 +116,20 @@ class ModuleCommand(commands.Command):
                 self.module_base.enable(self.opts.module_spec)
             except dnf.exceptions.MarkingErrors as e:
                 if self.base.conf.strict:
-                    raise e
+                    if e.no_match_group_specs or e.error_group_specs:
+                        raise e
+                    if e.module_debsolv_errors and e.module_debsolv_errors[1] != \
+                            libdnf.module.ModulePackageContainer.ModuleErrorType_ERROR_IN_DEFAULTS:
+                        raise e
                 logger.error(str(e))
+            switchedModules = dict(self.base._moduleContainer.getSwitchedStreams())
+            if switchedModules:
+                report_module_switch(switchedModules)
+                msg = _("It is not possible to switch enabled streams of a module.\n"
+                        "It is recommended to remove all installed content from the module, and "
+                        "reset the module using 'dnf module reset <module_name>' command. After "
+                        "you reset the module, you can enable the other stream.")
+                raise dnf.exceptions.Error(msg)
 
     class DisableSubCommand(SubCommand):
 
@@ -128,7 +147,11 @@ class ModuleCommand(commands.Command):
                 self.module_base.disable(self.opts.module_spec)
             except dnf.exceptions.MarkingErrors as e:
                 if self.base.conf.strict:
-                    raise e
+                    if e.no_match_group_specs or e.error_group_specs:
+                        raise e
+                    if e.module_debsolv_errors and e.module_debsolv_errors[1] != \
+                            libdnf.module.ModulePackageContainer.ModuleErrorType_ERROR_IN_DEFAULTS:
+                        raise e
                 logger.error(str(e))
 
     class ResetSubCommand(SubCommand):
@@ -170,6 +193,14 @@ class ModuleCommand(commands.Command):
                     if e.no_match_group_specs or e.error_group_specs:
                         raise e
                 logger.error(str(e))
+            switchedModules = dict(self.base._moduleContainer.getSwitchedStreams())
+            if switchedModules:
+                report_module_switch(switchedModules)
+                msg = _("It is not possible to switch enabled streams of a module.\n"
+                        "It is recommended to remove all installed content from the module, and "
+                        "reset the module using 'dnf module reset <module_name>' command. After "
+                        "you reset the module, you can install the other stream.")
+                raise dnf.exceptions.Error(msg)
 
     class UpdateSubCommand(SubCommand):
 
@@ -195,6 +226,7 @@ class ModuleCommand(commands.Command):
             demands = self.cli.demands
             demands.allow_erasing = True
             demands.available_repos = True
+            demands.fresh_metadata = False
             demands.resolving = True
             demands.root_user = True
             demands.sack_activation = True
@@ -203,9 +235,7 @@ class ModuleCommand(commands.Command):
             skipped_groups = self.module_base.remove(self.opts.module_spec)
             if not skipped_groups:
                 return
-            groups = set(self.opts.module_spec)
-            if not groups.difference(skipped_groups):
-                raise dnf.exceptions.MarkingErrors(no_match_group_specs=skipped_groups)
+
             logger.error(dnf.exceptions.MarkingErrors(no_match_group_specs=skipped_groups))
 
     class ProvidesSubCommand(SubCommand):
@@ -241,7 +271,7 @@ class ModuleCommand(commands.Command):
     def set_argparser(self, parser):
         subcommand_help = [subcmd.aliases[0] for subcmd in self.SUBCMDS]
         parser.add_argument('subcmd', nargs=1, choices=subcommand_help)
-        parser.add_argument('module_spec', nargs='*')
+        parser.add_argument('module_spec', metavar='module-spec', nargs='*')
 
         narrows = parser.add_mutually_exclusive_group()
         narrows.add_argument('--enabled', dest='enabled',
@@ -279,8 +309,3 @@ class ModuleCommand(commands.Command):
                 raise CliError(
                     "dnf {} {}: too few arguments".format(self.opts.command[0],
                                                           self.opts.subcmd[0]))
-
-    def run_transaction(self):
-        if self.opts.subcmd[0] in ('enable',):
-            logger.info(_("\nSwitching module streams does not alter installed packages "
-                          "(see 'module enable' in dnf(8) for details)"))

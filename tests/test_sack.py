@@ -35,8 +35,8 @@ class SackTest(tests.support.DnfBaseTestCase):
     def test_rpmdb_version(self):
         version = self.sack._rpmdb_version()
         self.assertIsNotNone(version)
-        self.assertEqual(version._num, tests.support.TOTAL_RPMDB_COUNT)
-        self.assertEqual(version._chksum.hexdigest(), tests.support.RPMDB_CHECKSUM)
+        expected = "%s:%s" % (tests.support.TOTAL_RPMDB_COUNT, tests.support.RPMDB_CHECKSUM)
+        self.assertEqual(version, expected)
 
     def test_excludepkgs(self):
         self.base.conf.excludepkgs = ['pepper']
@@ -69,7 +69,7 @@ class SackTest(tests.support.DnfBaseTestCase):
         self.base.conf.excludepkgs = ['*.i?86']
         self.base.conf.includepkgs = ['lib*']
         self.base._setup_excludes_includes()
-        peppers = self.base.sack.query().filter().run()
+        peppers = self.base.sack.query().run()
         self.assertLength(peppers, 1)
         self.assertEqual(str(peppers[0]), "librita-1-1.x86_64")
 

@@ -41,12 +41,6 @@ from dnf.conf.config import PRIO_DEFAULT, PRIO_MAINCONFIG, PRIO_AUTOMATICCONFIG
 from dnf.conf.config import PRIO_REPOCONFIG, PRIO_PLUGINDEFAULT, PRIO_PLUGINCONFIG
 from dnf.conf.config import PRIO_COMMANDLINE, PRIO_RUNTIME
 
-from dnf.conf.config import Value
-from dnf.conf.config import Option, ListOption
-from dnf.conf.config import IntOption
-from dnf.conf.config import SecondsOption, BoolOption
-from dnf.conf.config import SelectionOption
-
-from dnf.conf.config import BaseConfig, MainConf, RepoConf, ModuleConf
+from dnf.conf.config import BaseConfig, MainConf, RepoConf
 
 Conf = MainConf

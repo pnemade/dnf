@@ -24,29 +24,10 @@ import argparse
 import dnf.conf
 import dnf.conf.read
 import dnf.exceptions
-from dnf.conf import Option, BaseConfig, Conf, RepoConf
+from dnf.conf import BaseConfig, Conf, RepoConf
 
 import tests.support
 from tests.support import mock
-
-
-class OptionTest(tests.support.TestCase):
-
-    class Cfg(BaseConfig):
-        def __init__(self):
-            super(OptionTest.Cfg, self).__init__()
-            self._add_option('a_setting', Option("roundabout"))
-
-    def test_option(self):
-        cfg = self.Cfg()
-        # default
-        self.assertEqual(cfg.a_setting, "roundabout")
-        # new value with high priority
-        cfg.a_setting = "turn left"
-        self.assertEqual(cfg.a_setting, "turn left")
-        # new value with lower priority does nothing
-        cfg._set_value('a_setting', "turn right", dnf.conf.PRIO_DEFAULT)
-        self.assertEqual(cfg.a_setting, "turn left")
 
 
 class CacheTest(tests.support.TestCase):
@@ -106,7 +87,7 @@ class ConfTest(tests.support.TestCase):
         conf.config_file_path = '%s/etc/dnf/dnf.conf' % tests.support.dnf_toplevel()
         opts = argparse.Namespace(
             gpgcheck=False,
-            main_setopts=argparse.Namespace(installonly_limit=5)
+            main_setopts={'installonly_limit': ['5']}
         )
         # read config
         conf.read(priority=dnf.conf.PRIO_MAINCONFIG)

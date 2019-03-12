@@ -84,7 +84,9 @@ REASONS = {
     'tour': 'group',
     'trampoline': 'group',
 }
-RPMDB_CHECKSUM = '47655615e9eae2d339443fa00065d41900f99baf'
+# @System.repo doesn't provide sha1header/pkgid
+# the checksum is computed from an empty string
+RPMDB_CHECKSUM = 'da39a3ee5e6b4b0d3255bfef95601890afd80709'
 TOTAL_RPMDB_COUNT = 10
 SYSTEM_NSOLVABLES = TOTAL_RPMDB_COUNT
 MAIN_NSOLVABLES = 9
@@ -477,7 +479,7 @@ class FakeConf(dnf.conf.Conf):
             ('disable_excludes', []),
             ('diskspacecheck', True),
             ('exclude', []),
-            ('include', []),
+            ('includepkgs', []),
             ('install_weak_deps', True),
             ('history_record', False),
             ('installonly_limit', 0),
@@ -495,7 +497,7 @@ class FakeConf(dnf.conf.Conf):
             ('strict', True),
         ] + list(kwargs.items())
         for optname, val in options:
-            setattr(self, optname, dnf.conf.Value(val, dnf.conf.PRIO_DEFAULT))
+            self._set_value(optname, val, dnf.conf.PRIO_DEFAULT)
 
         # TODO: consolidate with dnf.cli.Cli._read_conf_file()
         for opt in ('cachedir', 'logdir', 'persistdir'):
@@ -685,10 +687,12 @@ class DnfBaseTestCase(TestCase):
             if tsi.getState() == libdnf.transaction.TransactionItemState_UNKNOWN:
                 tsi.setState(libdnf.transaction.TransactionItemState_DONE)
         self.history.end("")
+        self.history.close()
 
     def _swdb_commit(self, tsis=None):
         self._swdb_begin(tsis)
         self._swdb_end()
+        self.history.close()
 
 
 class ResultTestCase(DnfBaseTestCase):

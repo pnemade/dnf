@@ -1,103 +1,93 @@
-# SOME DESCRIPTIVE TITLE.
-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the PACKAGE package.
-#
-# Translators:
-# La Ode Muh. Fadlun Akbar <fadlun.net@gmail.com>, 2014
-# Teguh Dwicaksana <dheche@songolimo.net>, 2011
-# Jan Silhan <jsilhan@redhat.com>, 2015. #zanata
-# Teguh Dwicaksana <dheche@fedoraproject.org>, 2015. #zanata
-# sentabi <sentabi@fedoraproject.org>, 2016. #zanata
-# Andika Triwidada <andika@gmail.com>, 2018. #zanata
+# Carmen Bianca Bakker <carmen@carmenbianca.eu>, 2019. #zanata
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-03-11 10:38+0100\n"
-"PO-Revision-Date: 2018-02-23 11:13+0000\n"
-"Last-Translator: Andika Triwidada <andika@gmail.com>\n"
-"Language-Team: Indonesian (http://www.transifex.com/projects/p/dnf/language/id/)\n"
-"Language: id\n"
+"PO-Revision-Date: 2019-02-23 11:17+0000\n"
+"Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
+"Language-Team: Esperanto\n"
+"Language: eo\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Generator: Zanata 4.6.2\n"
 
 #. TRANSLATORS: This is for a single package currently being downgraded.
 #: ../dnf/transaction.py:79
 msgctxt "currently"
 msgid "Downgrading"
-msgstr ""
+msgstr "Malaltgradigante"
 
 #: ../dnf/transaction.py:80 ../dnf/transaction.py:87 ../dnf/transaction.py:92
 #: ../dnf/transaction.py:94
 msgid "Cleanup"
-msgstr "Pembersihan"
+msgstr "Purigo"
 
 #. TRANSLATORS: This is for a single package currently being installed.
 #: ../dnf/transaction.py:82
 msgctxt "currently"
 msgid "Installing"
-msgstr ""
+msgstr "Instalante"
 
 #: ../dnf/transaction.py:83 ../dnf/transaction.py:84 ../dnf/cli/output.py:1952
 msgid "Obsoleting"
-msgstr ""
+msgstr "Arĥaikigante"
 
 #. TRANSLATORS: This is for a single package currently being reinstalled.
 #: ../dnf/transaction.py:86
 msgctxt "currently"
 msgid "Reinstalling"
-msgstr ""
+msgstr "Reinstalante"
 
 #. TODO: 'Removing'?
 #: ../dnf/transaction.py:89
 msgid "Erasing"
-msgstr "Menghapus"
+msgstr "Forigante"
 
 #. TRANSLATORS: This is for a single package currently being upgraded.
 #: ../dnf/transaction.py:91
 msgctxt "currently"
 msgid "Upgrading"
-msgstr ""
+msgstr "Altgradigante"
 
 #: ../dnf/transaction.py:95
 msgid "Verifying"
-msgstr "Verifikasi"
+msgstr "Kontrolante"
 
 #: ../dnf/transaction.py:96
 msgid "Running scriptlet"
-msgstr ""
+msgstr "Rulante skripteton"
 
 #: ../dnf/transaction.py:98
 msgid "Preparing"
-msgstr ""
+msgstr "Preparante"
 
 #: ../dnf/plugin.py:63
 #, python-format
 msgid "Parsing file failed: %s"
-msgstr ""
+msgstr "Analizado de dosiero malsukcesis: %s"
 
 #: ../dnf/plugin.py:139
 #, python-format
 msgid "Loaded plugins: %s"
-msgstr ""
+msgstr "Ŝargitaj kromprogramoj: %s"
 
 #: ../dnf/plugin.py:197
 #, python-format
 msgid "Failed loading plugin: %s"
-msgstr ""
+msgstr "Malsukcesis ŝargi kromprogramon: %s"
 
 #: ../dnf/repodict.py:58
 #, python-format
 msgid "enabling %s repository"
-msgstr ""
+msgstr "ŝaltante %s deponejon"
 
 #: ../dnf/repodict.py:94
 #, python-format
 msgid "Added %s repo from %s"
-msgstr ""
+msgstr "Aldonis %s deponejon el %s"
 
 #. Translators: This is abbreviated 'Name'. Should be no longer
 #. than 12 characters. You can use the full version if it is short
@@ -115,7 +105,7 @@ msgstr ""
 #. Translators: This message should be no longer than 12 characters.
 #: ../dnf/cli/output.py:502
 msgid "Epoch"
-msgstr ""
+msgstr "Epoĥo"
 
 #. Translators: This is the short version of 'Version'. You can
 #. use the full (unabbreviated) term 'Version' if you think that
@@ -135,7 +125,7 @@ msgstr ""
 #. Translators: This message should be no longer than 12 characters.
 #: ../dnf/cli/output.py:507
 msgid "Release"
-msgstr "Rilis"
+msgstr "Eldono"
 
 #. Translators: This is abbreviated 'Architecture', used when
 #. we have not enough space to display the full word.
@@ -169,7 +159,7 @@ msgstr ""
 #. Translators: This message should be no longer than 12 characters.
 #: ../dnf/cli/output.py:515
 msgid "Source"
-msgstr ""
+msgstr "Fonto"
 
 #. Translators: This is abbreviated 'Repository', used when
 #. we have not enough space to display the full word.
@@ -188,7 +178,7 @@ msgstr ""
 #. Translators: This message should be no longer than 12 chars.
 #: ../dnf/cli/output.py:524
 msgid "From repo"
-msgstr "Dari repo"
+msgstr "El deponejo"
 
 #. :hawkey does not support changelog information
 #. print(_("Committer   : %s") % ucd(pkg.committer))
@@ -196,22 +186,22 @@ msgstr "Dari repo"
 #. Translators: This message should be no longer than 12 characters.
 #: ../dnf/cli/output.py:530
 msgid "Packager"
-msgstr ""
+msgstr "Pakinto"
 
 #. Translators: This message should be no longer than 12 characters.
 #: ../dnf/cli/output.py:532
 msgid "Buildtime"
-msgstr ""
+msgstr "Konstrua tempo"
 
 #. Translators: This message should be no longer than 12 characters.
 #: ../dnf/cli/output.py:536
 msgid "Install time"
-msgstr "Waktu pemasangan"
+msgstr "Instala tempo"
 
 #. Translators: This message should be no longer than 12 chars.
 #: ../dnf/cli/output.py:545
 msgid "Installed by"
-msgstr "Dipasang oleh"
+msgstr "Instalite de"
 
 #. Translators: This is abbreviated 'Summary'. Should be no longer
 #. than 12 characters. You can use the full version if it is short
@@ -233,7 +223,7 @@ msgstr "URL"
 #. Translators: This message should be no longer than 12 characters.
 #: ../dnf/cli/output.py:555
 msgid "License"
-msgstr "Lisensi"
+msgstr "Permesilo"
 
 #. Translators: This is abbreviated 'Description'. Should be no longer
 #. than 12 characters. You can use the full version if it is short
@@ -254,11 +244,11 @@ msgstr ""
 
 #: ../dnf/cli/output.py:686
 msgid "y"
-msgstr "y"
+msgstr "j"
 
 #: ../dnf/cli/output.py:686
 msgid "yes"
-msgstr "ya"
+msgstr "jes"
 
 #: ../dnf/cli/output.py:687
 msgid "n"
@@ -266,87 +256,87 @@ msgstr "n"
 
 #: ../dnf/cli/output.py:687
 msgid "no"
-msgstr "no"
+msgstr "ne"
 
 #: ../dnf/cli/output.py:691
 msgid "Is this ok [y/N]: "
-msgstr "Apakah ini ok? [y/N]: "
+msgstr "Ĉu ĉi tio bonas? [j/N]: "
 
 #: ../dnf/cli/output.py:695
 msgid "Is this ok [Y/n]: "
-msgstr "Apakah ini ok? [Y/n]: "
+msgstr "Ĉu ĉi tio bonas? [J/n]: "
 
 #: ../dnf/cli/output.py:775
 #, python-format
 msgid "Group: %s"
-msgstr ""
+msgstr "Grupo: %s"
 
 #: ../dnf/cli/output.py:779
 #, python-format
 msgid " Group-Id: %s"
-msgstr " ID-Grup: %s"
+msgstr " Grupa identigilo: %s"
 
 #: ../dnf/cli/output.py:781 ../dnf/cli/output.py:820
 #, python-format
 msgid " Description: %s"
-msgstr " Deskripsi: %s"
+msgstr " Priskribo: %s"
 
 #: ../dnf/cli/output.py:783
 #, python-format
 msgid " Language: %s"
-msgstr " Bahasa: %s"
+msgstr " Lingvo: %s"
 
 #: ../dnf/cli/output.py:786
 msgid " Mandatory Packages:"
-msgstr " Paket-paket Wajib:"
+msgstr " Nepraj pakoj:"
 
 #: ../dnf/cli/output.py:787
 msgid " Default Packages:"
-msgstr " Paket-paket standar:"
+msgstr " Implicitaj pakoj:"
 
 #: ../dnf/cli/output.py:788
 msgid " Optional Packages:"
-msgstr " Paket-paket Opsional:"
+msgstr " Malnepraj pakoj:"
 
 #: ../dnf/cli/output.py:789
 msgid " Conditional Packages:"
-msgstr " Pakaet-paket kondisional:"
+msgstr " Kondiĉaj pakoj:"
 
 #: ../dnf/cli/output.py:814
 #, python-format
 msgid "Environment Group: %s"
-msgstr ""
+msgstr "Media grupo: %s"
 
 #: ../dnf/cli/output.py:817
 #, python-format
 msgid " Environment-Id: %s"
-msgstr ""
+msgstr " Media identigilo: %s"
 
 #: ../dnf/cli/output.py:823
 msgid " Mandatory Groups:"
-msgstr ""
+msgstr " Nepraj grupoj:"
 
 #: ../dnf/cli/output.py:824
 msgid " Optional Groups:"
-msgstr ""
+msgstr " Malnepraj grupoj:"
 
 #: ../dnf/cli/output.py:845
 msgid "Matched from:"
-msgstr "Dicocokkan dari:"
+msgstr "Kongruita de:"
 
 #: ../dnf/cli/output.py:859
 #, python-format
 msgid "Filename    : %s"
-msgstr "Nama berkas    : %s"
+msgstr "Dosiernomo  : %s"
 
 #: ../dnf/cli/output.py:883
 #, python-format
 msgid "Repo        : %s"
-msgstr "Repo        : %s"
+msgstr "Deponejo    : %s"
 
 #: ../dnf/cli/output.py:892
 msgid "Description : "
-msgstr "Keterangan : "
+msgstr "Priskribo   : "
 
 #: ../dnf/cli/output.py:896
 #, python-format
@@ -356,114 +346,114 @@ msgstr "URL         : %s"
 #: ../dnf/cli/output.py:900
 #, python-format
 msgid "License     : %s"
-msgstr "Lisensi     : %s"
+msgstr "Permesilo   : %s"
 
 #: ../dnf/cli/output.py:906
 #, python-format
 msgid "Provide    : %s"
-msgstr ""
+msgstr "Provizas    : %s"
 
 #: ../dnf/cli/output.py:926
 #, python-format
 msgid "Other       : %s"
-msgstr ""
+msgstr "Alia        : %s"
 
 #: ../dnf/cli/output.py:975
 msgid "There was an error calculating total download size"
-msgstr "Ada kesalahan saat menghitung ukuran total pengunduhan"
+msgstr "Estis eraro dum kalkulado de totala elŝut-grandeco"
 
 #: ../dnf/cli/output.py:981
 #, python-format
 msgid "Total size: %s"
-msgstr "Ukuran total: %s"
+msgstr "Totala grandeco: %s"
 
 #: ../dnf/cli/output.py:984
 #, python-format
 msgid "Total download size: %s"
-msgstr "Total ukuran pengunduhan: %s"
+msgstr "Totala elŝut-grandeco: %s"
 
 #: ../dnf/cli/output.py:987
 #, python-format
 msgid "Installed size: %s"
-msgstr "Ukuran terpasang: %s"
+msgstr "Instalita grandeco: %s"
 
 #: ../dnf/cli/output.py:1005
 msgid "There was an error calculating installed size"
-msgstr "Ada kesalahan saat menghitung ukuran terpasang"
+msgstr "Estis eraro dum kulkulado de instalita grandeco"
 
 #: ../dnf/cli/output.py:1009
 #, python-format
 msgid "Freed space: %s"
-msgstr ""
+msgstr "Liberigita spaco: %s"
 
 #: ../dnf/cli/output.py:1018
 msgid "Marking packages as installed by the group:"
-msgstr ""
+msgstr "Markante pakojn kiel instalitaj de la grupo:"
 
 #: ../dnf/cli/output.py:1025
 msgid "Marking packages as removed by the group:"
-msgstr ""
+msgstr "Markante pakojn kiel forigitaj de la grupo:"
 
 #: ../dnf/cli/output.py:1035
 msgid "Group"
-msgstr "Gru"
+msgstr "Grupo"
 
 #: ../dnf/cli/output.py:1035
 msgid "Packages"
-msgstr "Paket-paket"
+msgstr "Pakojn"
 
 #: ../dnf/cli/output.py:1100
 msgid "Installing group/module packages"
-msgstr ""
+msgstr "Instalante grupajn/modulajn pakojn"
 
 #: ../dnf/cli/output.py:1101
 msgid "Installing group packages"
-msgstr ""
+msgstr "Instalante grupajn pakojn"
 
 #. TRANSLATORS: This is for a list of packages to be installed.
 #: ../dnf/cli/output.py:1105
 msgctxt "summary"
 msgid "Installing"
-msgstr ""
+msgstr "Instalonte"
 
 #. TRANSLATORS: This is for a list of packages to be upgraded.
 #: ../dnf/cli/output.py:1107
 msgctxt "summary"
 msgid "Upgrading"
-msgstr ""
+msgstr "Altgradigonte"
 
 #. TRANSLATORS: This is for a list of packages to be reinstalled.
 #: ../dnf/cli/output.py:1109
 msgctxt "summary"
 msgid "Reinstalling"
-msgstr ""
+msgstr "Reinstalonte"
 
 #: ../dnf/cli/output.py:1111
 msgid "Installing dependencies"
-msgstr ""
+msgstr "Instalonte dependecojn"
 
 #: ../dnf/cli/output.py:1112
 msgid "Installing weak dependencies"
-msgstr ""
+msgstr "Instalonte malfortajn dependecojn"
 
 #. TRANSLATORS: This is for a list of packages to be removed.
 #: ../dnf/cli/output.py:1114
 msgid "Removing"
-msgstr "Menghapus"
+msgstr "Forigonte"
 
 #: ../dnf/cli/output.py:1115
 msgid "Removing dependent packages"
-msgstr ""
+msgstr "Forigonte dependajn pakojn"
 
 #: ../dnf/cli/output.py:1116
 msgid "Removing unused dependencies"
-msgstr ""
+msgstr "Forigonte neuzitajn dependecojn"
 
 #. TRANSLATORS: This is for a list of packages to be downgraded.
 #: ../dnf/cli/output.py:1118
 msgctxt "summary"
 msgid "Downgrading"
-msgstr ""
+msgstr "Malaltgradigonte"
 
 #: ../dnf/cli/output.py:1143
 msgid "Installing module profiles"
@@ -519,15 +509,17 @@ msgid ""
 "Skipping packages with conflicts:\n"
 "(add '%s' to command line to force their upgrade)"
 msgstr ""
+"Preterpasante pakojn kun konfliktoj:\n"
+"(aldonu “%s” al la komandlinio por devigi ilian altgradigon)"
 
 #: ../dnf/cli/output.py:1250
 #, python-format
 msgid "Skipping packages with broken dependencies%s"
-msgstr ""
+msgstr "Preterpasante pakojn kun difektajn dependecojn%s"
 
 #: ../dnf/cli/output.py:1254
 msgid " or part of a group"
-msgstr ""
+msgstr " aŭ parto de grupo"
 
 #. Translators: This is the short version of 'Package'. You can
 #. use the full (unabbreviated) term 'Package' if you think that
@@ -547,7 +539,7 @@ msgstr ""
 
 #: ../dnf/cli/output.py:1326
 msgid "replacing"
-msgstr ""
+msgstr "anstataŭigante"
 
 #: ../dnf/cli/output.py:1334
 #, python-format
@@ -557,60 +549,61 @@ msgid ""
 "%s\n"
 msgstr ""
 "\n"
-"Ringkasan Transaksi\n"
+"Transakcia resumo\n"
 "%s\n"
 
 #. TODO: remove
 #: ../dnf/cli/output.py:1339 ../dnf/cli/output.py:1948
 #: ../dnf/cli/output.py:1949
 msgid "Install"
-msgstr "Instal"
+msgstr "Instali"
 
 #: ../dnf/cli/output.py:1343 ../dnf/cli/output.py:1957
 msgid "Upgrade"
-msgstr ""
+msgstr "Altgradigi"
 
 #: ../dnf/cli/output.py:1344
 msgid "Remove"
-msgstr "Menghapus"
+msgstr "Forigi"
 
 #: ../dnf/cli/output.py:1346 ../dnf/cli/output.py:1955
 msgid "Downgrade"
-msgstr ""
+msgstr "Malaltgradigi"
 
 #: ../dnf/cli/output.py:1347
 msgid "Skip"
-msgstr ""
+msgstr "Preterpasi"
 
 #: ../dnf/cli/output.py:1356 ../dnf/cli/output.py:1372
-#, fuzzy
 msgid "Package"
 msgid_plural "Packages"
-msgstr[0] "Paket"
+msgstr[0] "Pako"
+msgstr[1] "Pakoj"
 
 #: ../dnf/cli/output.py:1374
 msgid "Dependent package"
 msgid_plural "Dependent packages"
-msgstr[0] ""
+msgstr[0] "Dependa pako"
+msgstr[1] "Dependaj pakoj"
 
 #: ../dnf/cli/output.py:1436 ../dnf/cli/output.py:1790
 #: ../dnf/cli/output.py:1958
 msgid "Upgraded"
-msgstr ""
+msgstr "Altgradigitaj"
 
 #: ../dnf/cli/output.py:1437 ../dnf/cli/output.py:1790
 #: ../dnf/cli/output.py:1956
 msgid "Downgraded"
-msgstr ""
+msgstr "Malaltgradigitaj"
 
 #: ../dnf/cli/output.py:1438 ../dnf/cli/output.py:1789
 #: ../dnf/cli/output.py:1791 ../dnf/cli/commands/updateinfo.py:306
 msgid "Installed"
-msgstr "Terpasang"
+msgstr "Instalitaj"
 
 #: ../dnf/cli/output.py:1442
 msgid "Reinstalled"
-msgstr "Dipasang ulang"
+msgstr "Reinstalitaj"
 
 #: ../dnf/cli/output.py:1443
 msgid "Skipped"
@@ -618,62 +611,62 @@ msgstr ""
 
 #: ../dnf/cli/output.py:1444
 msgid "Removed"
-msgstr "Dihapus"
+msgstr "Forigitaj"
 
 #: ../dnf/cli/output.py:1447
 msgid "Failed"
-msgstr ""
+msgstr "Malsukcesis"
 
 #: ../dnf/cli/output.py:1498
 msgid "Total"
-msgstr "Total"
+msgstr "Totala"
 
 #: ../dnf/cli/output.py:1526
 msgid "<unset>"
-msgstr "<unset>"
+msgstr "<neagordita>"
 
 #: ../dnf/cli/output.py:1527
 msgid "System"
-msgstr "Sistem"
+msgstr "Sistemo"
 
 #: ../dnf/cli/output.py:1597
 #, python-format
 msgid "Skipping merged transaction %d to %d, as it overlaps"
-msgstr ""
+msgstr "Preterpasante kunigitan transakcion %d ĝis %d, ĉar ili surmetas"
 
 #: ../dnf/cli/output.py:1608 ../dnf/cli/output.py:1715
 msgid "No transactions"
-msgstr "Tidak ada transaksi"
+msgstr "Neniu transakcio"
 
 #: ../dnf/cli/output.py:1628 ../dnf/cli/output.py:2029
 msgid "Bad transaction IDs, or package(s), given"
-msgstr "ID transaksi buruk, atau paket(-paket), diberikan"
+msgstr "Malbonaj transakciaj identigiloj, aŭ pako(j), specifitaj"
 
 #: ../dnf/cli/output.py:1664
 msgid "Command line"
-msgstr "Baris perintah"
+msgstr "Komandlinio"
 
 #. TRANSLATORS: user names who executed transaction in history command output
 #: ../dnf/cli/output.py:1667
 msgid "User name"
-msgstr ""
+msgstr "Uzantonomo"
 
 #. REALLY Needs to use columns!
 #: ../dnf/cli/output.py:1668 ../dnf/cli/output.py:2038
 msgid "ID"
-msgstr "ID"
+msgstr "Identigilo"
 
 #: ../dnf/cli/output.py:1670
 msgid "Date and time"
-msgstr "Tanggal dan waktu"
+msgstr "Dato kaj horo"
 
 #: ../dnf/cli/output.py:1671 ../dnf/cli/output.py:2039
 msgid "Action(s)"
-msgstr "Tindakan"
+msgstr "Ago(j)"
 
 #: ../dnf/cli/output.py:1672
 msgid "Altered"
-msgstr "Diubah"
+msgstr "Aliigita"
 
 #: ../dnf/cli/output.py:1716 ../dnf/cli/output.py:1732
 msgid "Failed history info"
@@ -681,181 +674,181 @@ msgstr ""
 
 #: ../dnf/cli/output.py:1731
 msgid "No transaction ID, or package, given"
-msgstr "Tidak ada ID transaksi, atau paket, yang diberikan"
+msgstr "Neniu transakcia identigilo, aŭ pako, specifita"
 
 #: ../dnf/cli/output.py:1789
 msgid "Erased"
-msgstr "Dihapus"
+msgstr "Forigita"
 
 #: ../dnf/cli/output.py:1791
 msgid "Not installed"
-msgstr "Tidak terpasang"
+msgstr "Ne instalita"
 
 #: ../dnf/cli/output.py:1792
 msgid "Older"
-msgstr "Lebih Lama"
+msgstr "Pli malnova"
 
 #: ../dnf/cli/output.py:1792
 msgid "Newer"
-msgstr "Lebih Baru"
+msgstr "Pli nova"
 
 #: ../dnf/cli/output.py:1840 ../dnf/cli/output.py:1842
 msgid "Transaction ID :"
-msgstr "ID Transaksi:"
+msgstr "Transakcia ID  :"
 
 #: ../dnf/cli/output.py:1845
 msgid "Begin time     :"
-msgstr "Waktu mulai     :"
+msgstr "Komenca tempo  :"
 
 #: ../dnf/cli/output.py:1848 ../dnf/cli/output.py:1850
 msgid "Begin rpmdb    :"
-msgstr "Mulai rpmdb :"
+msgstr "Komenca rpmdb  :"
 
 #: ../dnf/cli/output.py:1856
 #, python-format
 msgid "(%u seconds)"
-msgstr "(%u detik)"
+msgstr "(%u sekundoj)"
 
 #: ../dnf/cli/output.py:1858
 #, python-format
 msgid "(%u minutes)"
-msgstr "(%u menit)"
+msgstr "(%u minutoj)"
 
 #: ../dnf/cli/output.py:1860
 #, python-format
 msgid "(%u hours)"
-msgstr "(%u jam)"
+msgstr "(%u horoj)"
 
 #: ../dnf/cli/output.py:1862
 #, python-format
 msgid "(%u days)"
-msgstr "(%u hari)"
+msgstr "(%u tagoj)"
 
 #: ../dnf/cli/output.py:1863
 msgid "End time       :"
-msgstr "Waktu selesai       :"
+msgstr "Fina tempo     :"
 
 #: ../dnf/cli/output.py:1866 ../dnf/cli/output.py:1868
 msgid "End rpmdb      :"
-msgstr ""
+msgstr "Fina rpmdb     :"
 
 #: ../dnf/cli/output.py:1875 ../dnf/cli/output.py:1877
 msgid "User           :"
-msgstr "Pengguna           :"
+msgstr "Uzanto         :"
 
 #: ../dnf/cli/output.py:1881 ../dnf/cli/output.py:1884
 #: ../dnf/cli/output.py:1886 ../dnf/cli/output.py:1888
 #: ../dnf/cli/output.py:1890 ../dnf/cli/output.py:1892
 msgid "Return-Code    :"
-msgstr "Kode-Balikan    :"
+msgstr "Liver-kodo     :"
 
 #: ../dnf/cli/output.py:1881 ../dnf/cli/output.py:1888
 msgid "Aborted"
-msgstr "Dibatalkan"
+msgstr "Rompita"
 
 #: ../dnf/cli/output.py:1884 ../dnf/cli/output.py:1892
 msgid "Success"
-msgstr "Sukses"
+msgstr "Sukceso"
 
 #: ../dnf/cli/output.py:1886
 msgid "Failures:"
-msgstr "Kegagalan:"
+msgstr "Fiaskoj:"
 
 #: ../dnf/cli/output.py:1890
 msgid "Failure:"
-msgstr "Kegagalan:"
+msgstr "Fiasko:"
 
 #: ../dnf/cli/output.py:1900 ../dnf/cli/output.py:1902
 msgid "Releasever     :"
-msgstr ""
+msgstr "Eldon-versio   :"
 
 #: ../dnf/cli/output.py:1907 ../dnf/cli/output.py:1909
 msgid "Command Line   :"
-msgstr "Perintah Baris   :"
+msgstr "Komandlinio    :"
 
 #: ../dnf/cli/output.py:1915
 msgid "Comment        :"
-msgstr ""
+msgstr "Komento        :"
 
 #: ../dnf/cli/output.py:1919
 msgid "Transaction performed with:"
-msgstr "Transaksi dilakukan dengan:"
+msgstr "Transakcio farita per:"
 
 #: ../dnf/cli/output.py:1928
 msgid "Packages Altered:"
-msgstr "Paket Diubah:"
+msgstr "Aliigitaj pakoj:"
 
 #: ../dnf/cli/output.py:1934
 msgid "Scriptlet output:"
-msgstr "Keluaran scriptlet:"
+msgstr "Eligo de skripteto:"
 
 #: ../dnf/cli/output.py:1941
 msgid "Errors:"
-msgstr "Galat:"
+msgstr "Eraroj:"
 
 #: ../dnf/cli/output.py:1950
 msgid "Dep-Install"
-msgstr "Pemasangan-Dep"
+msgstr "Dependeco-instalo"
 
 #: ../dnf/cli/output.py:1951
 msgid "Obsoleted"
-msgstr "Usang"
+msgstr "Arĥaikigita"
 
 #: ../dnf/cli/output.py:1953
 msgid "Erase"
-msgstr "Hapus"
+msgstr "Forigi"
 
 #: ../dnf/cli/output.py:1954
 msgid "Reinstall"
-msgstr "Instal Ulang"
+msgstr "Reinstali"
 
 #: ../dnf/cli/output.py:2128
 #, python-format
 msgid "---> Package %s.%s %s will be installed"
-msgstr ""
+msgstr "---> Pako %s.%s %s estos instalita"
 
 #: ../dnf/cli/output.py:2130
 #, python-format
 msgid "---> Package %s.%s %s will be an upgrade"
-msgstr ""
+msgstr "---> Package %s.%s %s estos altgradigo"
 
 #: ../dnf/cli/output.py:2132
 #, python-format
 msgid "---> Package %s.%s %s will be erased"
-msgstr ""
+msgstr "---> Package %s.%s %s estos forigita"
 
 #: ../dnf/cli/output.py:2134
 #, python-format
 msgid "---> Package %s.%s %s will be reinstalled"
-msgstr ""
+msgstr "---> Package %s.%s %s estos reinstalita"
 
 #: ../dnf/cli/output.py:2136
 #, python-format
 msgid "---> Package %s.%s %s will be a downgrade"
-msgstr ""
+msgstr "---> Package %s.%s %s estos malaltgradigo"
 
 #: ../dnf/cli/output.py:2138
 #, python-format
 msgid "---> Package %s.%s %s will be obsoleting"
-msgstr ""
+msgstr "---> Package %s.%s %s estos arĥaikigante"
 
 #: ../dnf/cli/output.py:2140
 #, python-format
 msgid "---> Package %s.%s %s will be upgraded"
-msgstr ""
+msgstr "---> Package %s.%s %s estos altgradigita"
 
 #: ../dnf/cli/output.py:2142
 #, python-format
 msgid "---> Package %s.%s %s will be obsoleted"
-msgstr ""
+msgstr "---> Package %s.%s %s estos arĥaikigita"
 
 #: ../dnf/cli/output.py:2151
 msgid "--> Starting dependency resolution"
-msgstr "--> Memulai penyelesaian dependensi"
+msgstr "--> Komencante solvon de dependecoj"
 
 #: ../dnf/cli/output.py:2156
 msgid "--> Finished dependency resolution"
-msgstr "--> Penyelesaian dependensi terselesaikan"
+msgstr "--> Finante solvon de dependecoj"
 
 #: ../dnf/cli/output.py:2170 ../dnf/crypto.py:132
 #, python-format
@@ -869,88 +862,87 @@ msgstr ""
 #: ../dnf/cli/option_parser.py:54
 #, python-format
 msgid "Command line error: %s"
-msgstr "Galat di perintah baris: %s"
+msgstr "Komandlinia eraro: %s"
 
 #: ../dnf/cli/option_parser.py:85
 #, python-format
 msgid "bad format: %s"
-msgstr ""
+msgstr "malbona formo: %s"
 
 #: ../dnf/cli/option_parser.py:96
 #, python-format
 msgid "Setopt argument has multiple values: %s"
-msgstr ""
+msgstr "Setopt-argumento havas plurajn valorojn: %s"
 
 #: ../dnf/cli/option_parser.py:99
 #, python-format
 msgid "Setopt argument has no value: %s"
-msgstr ""
+msgstr "Setopt-argumento havas neniun valoron: %s"
 
 #: ../dnf/cli/option_parser.py:156
 msgid "Optional arguments"
-msgstr ""
+msgstr "Malnepraj argumentoj"
 
 #: ../dnf/cli/option_parser.py:159
 msgid "config file location"
-msgstr "lokasi berkas konfigurasi"
+msgstr "loko de agordodosiero"
 
 #: ../dnf/cli/option_parser.py:162
 msgid "quiet operation"
-msgstr "operasi senyap"
+msgstr "kvieta operacio"
 
 #: ../dnf/cli/option_parser.py:164
 msgid "verbose operation"
-msgstr ""
+msgstr "babilema operacio"
 
 #: ../dnf/cli/option_parser.py:166
 msgid "show DNF version and exit"
-msgstr "tampilkan versi DNF dan keluar"
+msgstr "montri DNF-version kaj ĉesi"
 
 #: ../dnf/cli/option_parser.py:167
 msgid "set install root"
-msgstr "set pemasangan root"
+msgstr "agordi instal-radikon"
 
 #: ../dnf/cli/option_parser.py:170
 msgid "do not install documentations"
-msgstr ""
+msgstr "ne instali dokumentadon"
 
 #: ../dnf/cli/option_parser.py:173
 msgid "disable all plugins"
-msgstr "nonaktifkan semua pengaya"
+msgstr "malŝalti ĉiujn kromprogramojn"
 
 #: ../dnf/cli/option_parser.py:176
 msgid "enable plugins by name"
-msgstr ""
+msgstr "ŝalti kromprogramojn per nomo"
 
 #: ../dnf/cli/option_parser.py:180
 msgid "disable plugins by name"
-msgstr "nonaktifkan pengaya berdasarkan nama"
+msgstr "malŝalti kromprogramojn per nomo"
 
 #: ../dnf/cli/option_parser.py:183
 msgid "override the value of $releasever in config and repo files"
 msgstr ""
+"anstataŭigi la valoron de $releasever en agordaj kaj deponejaj dosieroj"
 
 #: ../dnf/cli/option_parser.py:187
 msgid "set arbitrary config and repo options"
-msgstr ""
+msgstr "agordi hazardajn agordajn kaj deponejajn opciojn"
 
 #: ../dnf/cli/option_parser.py:190
 msgid "resolve depsolve problems by skipping packages"
-msgstr ""
+msgstr "solvi dependeco-solvajn problemojn per preterpasado de pakoj"
 
 #: ../dnf/cli/option_parser.py:193
 msgid "show command help"
-msgstr ""
+msgstr "montri komandan helpon"
 
 #: ../dnf/cli/option_parser.py:197
 msgid "allow erasing of installed packages to resolve dependencies"
-msgstr ""
-"membolehkan penghapusan dari paket yang terpasang untuk menyelesaikan "
-"dependensi"
+msgstr "permesi forigon de instalitajn pakojn por solvi dependecojn"
 
 #: ../dnf/cli/option_parser.py:201
 msgid "try the best available package versions in transactions."
-msgstr "mencoba versi paket terbaik yang tersedia dalam transaksi."
+msgstr "provi la plej bonajn disponeblajn pakajn versiojn en transakcioj."
 
 #: ../dnf/cli/option_parser.py:203
 msgid "do not limit the transaction to the best candidate"
@@ -958,28 +950,27 @@ msgstr ""
 
 #: ../dnf/cli/option_parser.py:206
 msgid "run entirely from system cache, don't update cache"
-msgstr ""
-"jalankan sepenuhnya dari singgahan sistem, jangan memutakhirkan persinggahan"
+msgstr "ruli entute el sistema kaŝmemoro, ne ĝisdatigi kaŝmemoron"
 
 #: ../dnf/cli/option_parser.py:210
 msgid "maximum command wait time"
-msgstr ""
+msgstr "maksimuma komanda atendotempo"
 
 #: ../dnf/cli/option_parser.py:213
 msgid "debugging output level"
-msgstr ""
+msgstr "sencimiga eliga nivelo"
 
 #: ../dnf/cli/option_parser.py:216
 msgid "dumps detailed solving results into files"
-msgstr ""
+msgstr "ŝutas detalajn solv-rezultojn en dosierojn"
 
 #: ../dnf/cli/option_parser.py:220
 msgid "show duplicates, in repos, in list/search commands"
-msgstr "tampilkan duplikat, di repo, di daftar/perintah pencarian"
+msgstr "montri duoblaĵojn, en deponejoj, en listaj/serĉaj komandoj"
 
 #: ../dnf/cli/option_parser.py:223
 msgid "error output level"
-msgstr ""
+msgstr "erara eliga nivelo"
 
 #: ../dnf/cli/option_parser.py:226
 msgid ""
@@ -989,21 +980,23 @@ msgstr ""
 
 #: ../dnf/cli/option_parser.py:230
 msgid "debugging output level for rpm"
-msgstr ""
+msgstr "sencimiga eniga nivelo por rpm"
 
 #: ../dnf/cli/option_parser.py:233
 msgid "automatically answer yes for all questions"
-msgstr ""
+msgstr "aŭtomate jesi ĉiujn demandojn"
 
 #: ../dnf/cli/option_parser.py:236
 msgid "automatically answer no for all questions"
-msgstr ""
+msgstr "aŭtomate nei ĉiujn demandojn"
 
 #: ../dnf/cli/option_parser.py:247
 msgid ""
 "enable just specific repositories by an id or a glob, can be specified "
 "multiple times"
 msgstr ""
+"ŝalti nur specifajn deponejojn pere de identigilo aŭ glob, povas esti "
+"specifita plurfoje"
 
 #: ../dnf/cli/option_parser.py:252
 msgid "enable repos with config-manager command (automatically saves)"
@@ -1015,7 +1008,7 @@ msgstr ""
 
 #: ../dnf/cli/option_parser.py:260
 msgid "exclude packages by name or glob"
-msgstr ""
+msgstr "ekskluzivi pakojn pere de nomo aŭ glob"
 
 #: ../dnf/cli/option_parser.py:265
 msgid "disable excludepkgs"
@@ -1024,11 +1017,11 @@ msgstr ""
 #: ../dnf/cli/option_parser.py:270
 msgid ""
 "label and path to additional repository, can be specified multiple times."
-msgstr ""
+msgstr "etikedo kaj vojo al cetera deponejo, povas esti specifita plurfoje."
 
 #: ../dnf/cli/option_parser.py:274
 msgid "disable removal of dependencies that are no longer used"
-msgstr ""
+msgstr "malŝalti forigon de deponejoj kiuj ne plu estas uzataj"
 
 #: ../dnf/cli/option_parser.py:277
 msgid "disable gpg signature checking (if RPM policy allows)"
@@ -1036,88 +1029,93 @@ msgstr ""
 
 #: ../dnf/cli/option_parser.py:279
 msgid "control whether color is used"
-msgstr ""
+msgstr "kontroli ĉu koloro estas uzata"
 
 #: ../dnf/cli/option_parser.py:282
 msgid "set metadata as expired before running the command"
-msgstr ""
+msgstr "marki metadatumojn kiel senvalidigitaj antaŭ ol ruli la komando"
 
 #: ../dnf/cli/option_parser.py:285
 msgid "resolve to IPv4 addresses only"
-msgstr "penyelesaian hanyauntuk alamat IPv4"
+msgstr "solvi nur al IPv4-adresoj"
 
 #: ../dnf/cli/option_parser.py:288
 msgid "resolve to IPv6 addresses only"
-msgstr "penyelesaian hanyauntuk alamat IPv6"
+msgstr "solvi nur al IPv6-adresoj"
 
 #: ../dnf/cli/option_parser.py:291
 msgid "set directory to copy packages to"
-msgstr ""
+msgstr "agordi dosierujon al kiu kopii pakojn"
 
 #: ../dnf/cli/option_parser.py:294
 msgid "only download packages"
-msgstr ""
+msgstr "nur elŝuti pakojn"
 
 #: ../dnf/cli/option_parser.py:296
 msgid "add a comment to transaction"
-msgstr ""
+msgstr "aldoni komenton al transakcio"
 
 #: ../dnf/cli/option_parser.py:299
 msgid "Include bugfix relevant packages, in updates"
-msgstr ""
+msgstr "Inkluzivi cimoriparo-rilatajn pakojn, en ĝisdatigoj"
 
 #: ../dnf/cli/option_parser.py:302
 msgid "Include enhancement relevant packages, in updates"
-msgstr ""
+msgstr "Inkluzivi plibonigo-rilatajn pakojn, en ĝisdatigoj"
 
 #: ../dnf/cli/option_parser.py:305
 msgid "Include newpackage relevant packages, in updates"
-msgstr ""
+msgstr "Inkluzivi novapako-rilatajn pakojn, en ĝisdatigoj"
 
 #: ../dnf/cli/option_parser.py:308
 msgid "Include security relevant packages, in updates"
-msgstr ""
+msgstr "Inkluzivi sekureco-rilatajn pakojn, en ĝisdatigoj"
 
 #: ../dnf/cli/option_parser.py:312
 msgid "Include packages needed to fix the given advisory, in updates"
 msgstr ""
+"Inkluzivi pakojn kiu necesas por ripari la specifitan konsilon, en "
+"ĝisdatigoj"
 
 #: ../dnf/cli/option_parser.py:316
 msgid "Include packages needed to fix the given BZ, in updates"
 msgstr ""
+"Inkluzivi pakojn kiu necesas por ripari la specifitan BZ, en ĝisdatigoj"
 
 #: ../dnf/cli/option_parser.py:319
 msgid "Include packages needed to fix the given CVE, in updates"
 msgstr ""
+"Inkluzivi pakojn kiu necesas por ripari la specifitan CVE, en ĝisdatigoj"
 
 #: ../dnf/cli/option_parser.py:324
 msgid "Include security relevant packages matching the severity, in updates"
 msgstr ""
+"Inkluzivi sekureco-rilatajn pakojn kiu kongruas la gravecon, en ĝisdatigoj"
 
 #: ../dnf/cli/option_parser.py:330
 msgid "Force the use of an architecture"
-msgstr ""
+msgstr "Devigi uzon de arĥitekturo"
 
 #: ../dnf/cli/option_parser.py:365
 msgid "List of Main Commands:"
-msgstr ""
+msgstr "Listo de ĉefaj komandoj:"
 
 #: ../dnf/cli/option_parser.py:366
 msgid "List of Plugin Commands:"
-msgstr ""
+msgstr "Listo de kromprogramaj komandoj:"
 
 #: ../dnf/cli/main.py:57 ../dnf/automatic/main.py:266
 #, python-format
 msgid "Error: %s"
-msgstr "Galat: %s"
+msgstr "Eraro: %s"
 
 #: ../dnf/cli/main.py:79
 msgid "Terminated."
-msgstr "Dihentikan."
+msgstr "Ĉesis."
 
 #: ../dnf/cli/main.py:109
 msgid "No read/execute access in current directory, moving to /"
-msgstr "Tidak ada akses baca/eksekusi di direktori sekarang, pindah ke /"
+msgstr "Neniu lega/lanĉa atingo en la aktuala dosierujo, movante al /"
 
 #: ../dnf/cli/main.py:128
 msgid "try to add '{}' to command line to replace conflicting packages"
@@ -1141,35 +1139,37 @@ msgstr ""
 
 #: ../dnf/cli/main.py:160
 msgid "Dependencies resolved."
-msgstr "Dependensi terselesaikan."
+msgstr "Solvis dependecojn."
 
 #: ../dnf/cli/main.py:178
 msgid "Complete!"
-msgstr "Selesai!"
+msgstr "Plenumita!"
 
 #: ../dnf/cli/cli.py:136
 #, python-format
 msgid "  Installed: %s-%s at %s"
-msgstr "  Terpasang: %s-%s di %s"
+msgstr "  Instalita : %s-%s je %s"
 
 #: ../dnf/cli/cli.py:138
 #, python-format
 msgid "  Built    : %s at %s"
-msgstr ""
+msgstr "  Konstruita: %s je %s"
 
 #: ../dnf/cli/cli.py:192
 msgid "DNF will only download packages for the transaction."
-msgstr ""
+msgstr "DNF nur elŝutos pakojn por la transakcio."
 
 #: ../dnf/cli/cli.py:194
 msgid ""
 "DNF will only download packages, install gpg keys, and check the "
 "transaction."
 msgstr ""
+"DNF nur elŝutos pakojn, instalos GPG-ŝlosilojn, kaj kontrolos la "
+"transakcion."
 
 #: ../dnf/cli/cli.py:198
 msgid "Operation aborted."
-msgstr "Operasi dibatalkan."
+msgstr "Rompis operacion."
 
 #: ../dnf/cli/cli.py:200 ../dnf/cli/commands/__init__.py:445
 #: ../dnf/cli/commands/__init__.py:502 ../dnf/cli/commands/__init__.py:595
@@ -1177,19 +1177,19 @@ msgstr "Operasi dibatalkan."
 #: ../dnf/cli/commands/install.py:103 ../dnf/cli/commands/install.py:110
 #: ../dnf/base.py:1638
 msgid "Nothing to do."
-msgstr "Tidak ada yang dilakukan."
+msgstr "Nenio farenda."
 
 #: ../dnf/cli/cli.py:205
 msgid "Downloading Packages:"
-msgstr "Mengunduh Paket-paket:"
+msgstr "Elŝutante pakojn:"
 
 #: ../dnf/cli/cli.py:211
 msgid "Error downloading packages:"
-msgstr ""
+msgstr "Eraro dum elŝutado de pakoj:"
 
 #: ../dnf/cli/cli.py:239
 msgid "Transaction failed"
-msgstr ""
+msgstr "Transakcio malsukcesis"
 
 #: ../dnf/cli/cli.py:262
 msgid ""
@@ -1199,7 +1199,7 @@ msgstr ""
 
 #: ../dnf/cli/cli.py:280
 msgid "GPG check FAILED"
-msgstr ""
+msgstr "GPG-kontrolo MALSUKCESIS"
 
 #: ../dnf/cli/cli.py:312
 msgid "Changelogs for {}"
@@ -1207,11 +1207,11 @@ msgstr ""
 
 #: ../dnf/cli/cli.py:345 ../dnf/cli/cli.py:488 ../dnf/cli/cli.py:494
 msgid "Obsoleting Packages"
-msgstr "Paket Usang"
+msgstr "Arĥaikigante pakojn"
 
 #: ../dnf/cli/cli.py:374
 msgid "No packages marked for distribution synchronization."
-msgstr "Tidak ada paket yang ditandai untuk sinkronisasi distribusi."
+msgstr "Neniu pako markita por distribuaĵa sinkronigo."
 
 #: ../dnf/cli/cli.py:393 ../dnf/cli/commands/upgrade.py:110
 #: ../dnf/cli/commands/upgrade.py:121 ../dnf/cli/commands/__init__.py:428
@@ -1225,123 +1225,127 @@ msgstr "Tidak ada paket yang ditandai untuk sinkronisasi distribusi."
 #: ../dnf/base.py:1998 ../dnf/base.py:2047 ../dnf/base.py:2136
 #, python-format
 msgid "No match for argument: %s"
-msgstr "Tidak ada cocok untuk argumen: %s"
+msgstr "Neniu kongruo por argumento: %s"
 
 #: ../dnf/cli/cli.py:402 ../dnf/cli/cli.py:656 ../dnf/cli/cli.py:686
 #: ../dnf/cli/commands/__init__.py:373 ../dnf/cli/commands/__init__.py:890
 #: ../dnf/cli/commands/group.py:386 ../dnf/base.py:2211
 #, python-format
 msgid "No package %s available."
-msgstr "Tidak ada paket %s yang tersedia."
+msgstr "Neniu pako %s disponeblas."
 
 #: ../dnf/cli/cli.py:405 ../dnf/base.py:2143
 #, python-format
 msgid "Packages for argument %s available, but not installed."
-msgstr ""
+msgstr "Pakoj por argumento %s disponeblas, sed ne instalitaj."
 
 #: ../dnf/cli/cli.py:411
 msgid "No packages marked for downgrade."
-msgstr ""
+msgstr "Neniu pako markita por malaltgradigo."
 
 #: ../dnf/cli/cli.py:462
 msgid "Installed Packages"
-msgstr "Paket Terpasang"
+msgstr "Instalitaj pakoj"
 
 #: ../dnf/cli/cli.py:470
 msgid "Available Packages"
-msgstr "Paket Tersedia"
+msgstr "Disponeblaj pakoj"
 
 #: ../dnf/cli/cli.py:474
 msgid "Autoremove Packages"
-msgstr ""
+msgstr "Aŭtomate forigi pakojn"
 
 #: ../dnf/cli/cli.py:476
 msgid "Extra Packages"
-msgstr "Paket Tambahan"
+msgstr "Ceteraj pakoj"
 
 #: ../dnf/cli/cli.py:480
 msgid "Available Upgrades"
-msgstr ""
+msgstr "Disponeblaj altgradigoj"
 
 #: ../dnf/cli/cli.py:496
 msgid "Recently Added Packages"
-msgstr "Paket yang baru ditambah"
+msgstr "Freŝaldonitaj pakoj"
 
 #: ../dnf/cli/cli.py:501
 msgid "No matching Packages to list"
-msgstr "Tidak ada Paket yang cocok dalam daftar"
+msgstr "Neniu kongrua pako al listo"
 
 #: ../dnf/cli/cli.py:582
 msgid "No Matches found"
-msgstr "Tidak ada yang cocok"
+msgstr "Neniu kongruo trovita"
 
 #: ../dnf/cli/cli.py:592
 msgid "No transaction ID given"
-msgstr "Tak ada ID transaksi yang diberikan"
+msgstr "Neniu transakcia identigilo specifita"
 
 #: ../dnf/cli/cli.py:597
 msgid "Not found given transaction ID"
-msgstr "Tidak ditemukan ID transaksi yang diberikan"
+msgstr "Ne trovis specifitan transakcian identigilon"
 
 #: ../dnf/cli/cli.py:606
 msgid "Found more than one transaction ID!"
-msgstr "Ditemukan lebih dari satu ID transaksi!"
+msgstr "Trovis pli ol unu transakcian identigilon!"
 
 #: ../dnf/cli/cli.py:623
 #, python-format
 msgid "Transaction history is incomplete, before %u."
-msgstr "Riwayar transaksi tidak tuntas, sebelum %u."
+msgstr "Transakcia historio ne kompletas, antaŭ %u."
 
 #: ../dnf/cli/cli.py:625
 #, python-format
 msgid "Transaction history is incomplete, after %u."
-msgstr "Riwayar transaksi tidak tuntas, setelah %u."
+msgstr "Transakcia historio ne kompletas, post %u."
 
 #: ../dnf/cli/cli.py:651 ../dnf/cli/cli.py:682 ../dnf/base.py:2018
 #: ../dnf/base.py:2205
 #, python-format
 msgid "No package %s installed."
-msgstr ""
+msgstr "Neniu pako %s instalita."
 
 #: ../dnf/cli/cli.py:672
 msgid "Undoing transaction {}, from {}"
-msgstr ""
+msgstr "Malfarante transakcion {}, de {}"
 
 #: ../dnf/cli/cli.py:751 ../dnf/cli/commands/shell.py:230
 #, python-format
 msgid "Unknown repo: '%s'"
-msgstr "Repo tidak diketahui: '%s'"
+msgstr "Nekonata deponejo: “%s”"
 
 #: ../dnf/cli/cli.py:765
 #, python-format
 msgid "No repository match: %s"
-msgstr ""
+msgstr "Neniu deponeja kongruo: %s"
 
 #: ../dnf/cli/cli.py:794
 msgid "This command has to be run under the root user."
-msgstr ""
+msgstr "Oni devas ruli ĉi tiun komando per la root-uzanto."
 
 #: ../dnf/cli/cli.py:823
 #, python-format
 msgid "No such command: %s. Please use %s --help"
-msgstr "Tidak ada perintah: %s. Silahkan gunakan %s --help"
+msgstr "Neniu tia komando: %s. Bonvolu uzi %s --help"
 
 #: ../dnf/cli/cli.py:826
 #, python-format
 msgid "It could be a DNF plugin command, try: \"dnf install 'dnf-command(%s)'\""
 msgstr ""
+"Povus esti DNF kromprograman komandon, provu: “dnf install 'dnf-"
+"command(%s)'”"
 
 #: ../dnf/cli/cli.py:829
 msgid ""
 "It could be a DNF plugin command, but loading of plugins is currently "
 "disabled."
 msgstr ""
+"Povus esti DNF kromprograman komandon, sed ŝargado de kromprogramoj estas "
+"ĉimomente malŝaltita."
 
 #: ../dnf/cli/cli.py:876 ../dnf/cli/cli.py:880 ../dnf/cli/aliases.py:115
 #: ../dnf/cli/aliases.py:128 ../dnf/cli/commands/alias.py:105
 #, python-format
 msgid "Config error: %s"
-msgstr "Galat di konfigurasi: %s"
+msgstr "Agorda eraro: %s"
 
 #: ../dnf/cli/cli.py:886
 msgid ""
@@ -1366,31 +1370,32 @@ msgid ""
 "Unable to detect release version (use '--releasever' to specify release "
 "version)"
 msgstr ""
+"Ne eblas detekti eldonversion (uzu “--releasever” por specifi eldonversion)"
 
 #: ../dnf/cli/cli.py:1089 ../dnf/cli/commands/repoquery.py:413
 msgid "argument {}: not allowed with argument {}"
-msgstr ""
+msgstr "argumento {}: ne permesita kun argumento {}"
 
 #: ../dnf/cli/cli.py:1096
 #, python-format
 msgid "Command \"%s\" already defined"
-msgstr "Perintah \"%s\" telah terdefinisi"
+msgstr "Komando “%s” jam specifita"
 
 #: ../dnf/cli/cli.py:1116
 msgid "Excludes in dnf.conf: "
-msgstr ""
+msgstr "Ekskludoj en dnf.conf: "
 
 #: ../dnf/cli/cli.py:1119
 msgid "Includes in dnf.conf: "
-msgstr ""
+msgstr "Inkludoj en dnf.conf: "
 
 #: ../dnf/cli/cli.py:1122
 msgid "Excludes in repo "
-msgstr ""
+msgstr "Ekskludoj en deponejo "
 
 #: ../dnf/cli/cli.py:1125
 msgid "Includes in repo "
-msgstr ""
+msgstr "Inkludoj en deponejo "
 
 #: ../dnf/cli/aliases.py:96
 #, python-format
@@ -1418,19 +1423,19 @@ msgstr ""
 
 #: ../dnf/cli/utils.py:98
 msgid "Running"
-msgstr "Berjalan"
+msgstr "Rulante"
 
 #: ../dnf/cli/utils.py:99
 msgid "Sleeping"
-msgstr ""
+msgstr "Dormante"
 
 #: ../dnf/cli/utils.py:100
 msgid "Uninterruptible"
-msgstr "Tak dapat diinterupsi"
+msgstr "Neinterrompebla"
 
 #: ../dnf/cli/utils.py:101
 msgid "Zombie"
-msgstr "Zombie"
+msgstr "Zombio"
 
 #: ../dnf/cli/utils.py:102
 msgid "Traced/Stopped"
@@ -1438,32 +1443,32 @@ msgstr ""
 
 #: ../dnf/cli/utils.py:103
 msgid "Unknown"
-msgstr "Tak diketahui"
+msgstr "Nekonata"
 
 #: ../dnf/cli/utils.py:113
 #, python-format
 msgid "Unable to find information about the locking process (PID %d)"
-msgstr ""
+msgstr "Ne eblas trovi informojn pri la ŝlosita procezo (PID %d)"
 
 #: ../dnf/cli/utils.py:117
 #, python-format
 msgid "  The application with PID %d is: %s"
-msgstr "  Aplikasi dengan PID %d adalah: %s"
+msgstr "  La aplikaĵo kun PID %d estas: %s"
 
 #: ../dnf/cli/utils.py:120
 #, python-format
 msgid "    Memory : %5s RSS (%5sB VSZ)"
-msgstr "    Memori : %5s RSS (%5sB VSZ)"
+msgstr "    Memoro  : %5s RSS (%5sB VSZ)"
 
 #: ../dnf/cli/utils.py:125
 #, python-format
 msgid "    Started: %s - %s ago"
-msgstr "    Dijalankan: %s - %s yang lalu"
+msgstr "    Komencis: %s - antaŭ %s"
 
 #: ../dnf/cli/utils.py:127
 #, python-format
 msgid "    State  : %s"
-msgstr ""
+msgstr "    Stato   : %s"
 
 #: ../dnf/cli/commands/alias.py:39
 msgid "List or create command aliases"
@@ -1543,15 +1548,15 @@ msgstr ""
 
 #: ../dnf/cli/commands/search.py:46
 msgid "search package details for the given string"
-msgstr ""
+msgstr "serĉi pakajn detalojn por la specifita ĉeno"
 
 #: ../dnf/cli/commands/search.py:51
 msgid "search also package description and URL"
-msgstr ""
+msgstr "serĉi ankaŭ pakan priskribon kaj URL"
 
 #: ../dnf/cli/commands/search.py:52
 msgid "QUERY_STRING"
-msgstr ""
+msgstr "INFORMPETA_ĈENO"
 
 #. TRANSLATORS: separator used between package attributes (eg. Name & Summary
 #. & URL)
@@ -1564,42 +1569,42 @@ msgstr " & "
 #: ../dnf/cli/commands/search.py:79
 #, python-format
 msgid "%s Exactly Matched: %%s"
-msgstr ""
+msgstr "%s precize kongruis: %%s"
 
 #. TRANSLATORS: %s  - translated package attributes,
 #. %%s - found keys (in listed attributes)
 #: ../dnf/cli/commands/search.py:83
 #, python-format
 msgid "%s Matched: %%s"
-msgstr ""
+msgstr "%s kongruis: %%s"
 
 #: ../dnf/cli/commands/search.py:126
 msgid "No matches found."
-msgstr ""
+msgstr "Trovis neniun kongruon."
 
 #: ../dnf/cli/commands/search.py:151 ../dnf/cli/commands/__init__.py:253
 msgid "Searching Packages: "
-msgstr "Mencari Paket-paket: "
+msgstr "Serĉante pakojn: "
 
 #: ../dnf/cli/commands/check.py:34
 msgid "check for problems in the packagedb"
-msgstr ""
+msgstr "kontroli ĉu estas problemoj en la packagedb"
 
 #: ../dnf/cli/commands/check.py:40
 msgid "show all problems; default"
-msgstr ""
+msgstr "montri ĉiujn problemojn; implicita"
 
 #: ../dnf/cli/commands/check.py:43
 msgid "show dependency problems"
-msgstr ""
+msgstr "montri dependecajn problemojn"
 
 #: ../dnf/cli/commands/check.py:46
 msgid "show duplicate problems"
-msgstr ""
+msgstr "montri duoblaĵajn problemojn"
 
 #: ../dnf/cli/commands/check.py:49
 msgid "show obsoleted packages"
-msgstr ""
+msgstr "montri arĥaikigitajn pakojn"
 
 #: ../dnf/cli/commands/check.py:52
 msgid "show problems with provides"
@@ -1611,71 +1616,70 @@ msgstr ""
 
 #: ../dnf/cli/commands/check.py:117
 msgid "{} is a duplicate with {}"
-msgstr ""
+msgstr "{} estas duoblaĵo kun {}"
 
 #: ../dnf/cli/commands/check.py:128
 msgid "{} is obsoleted by {}"
-msgstr ""
+msgstr "{0} arĥaikigas {1}"
 
 #: ../dnf/cli/commands/check.py:137
 msgid "{} provides {} but it cannot be found"
-msgstr ""
+msgstr "{} provizas {} sed oni ne povas trovi ĝin"
 
 #: ../dnf/cli/commands/distrosync.py:32
 msgid "synchronize installed packages to the latest available versions"
-msgstr ""
+msgstr "sinkronigi insalitajn pakojn al la lastaj disponeblaj versioj"
 
 #: ../dnf/cli/commands/distrosync.py:36
 msgid "Package to synchronize"
-msgstr ""
+msgstr "Sinkronigenda pako"
 
 #: ../dnf/cli/commands/upgrade.py:40
 msgid "upgrade a package or packages on your system"
-msgstr ""
+msgstr "ĝisdatigi pakon aŭ pakojn sur via sistemo"
 
 #: ../dnf/cli/commands/upgrade.py:44
 msgid "Package to upgrade"
-msgstr ""
+msgstr "Altgradigenda pako"
 
 #: ../dnf/cli/commands/upgrade.py:46 ../dnf/cli/commands/autoremove.py:48
 #: ../dnf/cli/commands/__init__.py:196 ../dnf/cli/commands/__init__.py:269
 #: ../dnf/cli/commands/__init__.py:775 ../dnf/cli/commands/remove.py:61
 #: ../dnf/cli/commands/install.py:51 ../dnf/cli/commands/reinstall.py:44
 msgid "PACKAGE"
-msgstr "PAKET"
+msgstr "PAKO"
 
 #: ../dnf/cli/commands/upgrade.py:89 ../dnf/cli/commands/__init__.py:719
 msgid "No packages marked for upgrade."
-msgstr "Tidak ada paket yang ditandai untuk upgrade."
+msgstr "Neniu pako markita por altgradigo."
 
 #: ../dnf/cli/commands/autoremove.py:41
 msgid ""
 "remove all unneeded packages that were originally installed as dependencies"
 msgstr ""
-"hapus semua paket yang tak diperlukan yang awalnya dipasang sebagai "
-"ketergantungan"
+"forigi ĉiujn nenecesajn pakojn kiuj oni origine instalis kiel dependecoj"
 
 #: ../dnf/cli/commands/autoremove.py:46 ../dnf/cli/commands/remove.py:59
 msgid "Package to remove"
-msgstr "Paket yang akan dihapus"
+msgstr "Forigenda pako"
 
 #: ../dnf/cli/commands/makecache.py:37
 msgid "generate the metadata cache"
-msgstr ""
+msgstr "generi la metadatuman kaŝmemoron"
 
 #: ../dnf/cli/commands/makecache.py:48
 msgid "Making cache files for all metadata files."
-msgstr ""
+msgstr "Farante kaŝmemorajn dosierojn por ĉiuj metadatumaj dosieroj."
 
 #: ../dnf/cli/commands/__init__.py:47
 #, python-format
 msgid "To diagnose the problem, try running: '%s'."
-msgstr "Untuk mendiagnosa masalah, coba jalankan: '%s'."
+msgstr "Por diagnozi la problemon, provu ruli: “%s”."
 
 #: ../dnf/cli/commands/__init__.py:49
 #, python-format
 msgid "You probably have corrupted RPMDB, running '%s' might fix the issue."
-msgstr ""
+msgstr "Vi probable difektigis RPMDB, “%s” povus ripari la problemon."
 
 #: ../dnf/cli/commands/__init__.py:53
 msgid ""
@@ -1696,60 +1700,60 @@ msgstr ""
 #: ../dnf/cli/commands/__init__.py:80
 #, python-format
 msgid "Problem repository: %s"
-msgstr "Masalah repositori: %s"
+msgstr "Problema deponejo: %s"
 
 #: ../dnf/cli/commands/__init__.py:101 ../dnf/base.py:356
 msgid "There are no enabled repos."
-msgstr "Tidak ada repo-repo yang aktif."
+msgstr "Estas neniu ŝaltita deponejo."
 
 #: ../dnf/cli/commands/__init__.py:164
 msgid "display details about a package or group of packages"
-msgstr ""
+msgstr "montri detalojn pri la pako aŭ grupo de pakoj"
 
 #: ../dnf/cli/commands/__init__.py:174 ../dnf/cli/commands/__init__.py:753
 msgid "show all packages (default)"
-msgstr ""
+msgstr "montri ĉiujn pakojn (implicita)"
 
 #: ../dnf/cli/commands/__init__.py:177 ../dnf/cli/commands/__init__.py:756
 msgid "show only available packages"
-msgstr ""
+msgstr "montri nur disponeblajn pakojn"
 
 #: ../dnf/cli/commands/__init__.py:180 ../dnf/cli/commands/__init__.py:759
 msgid "show only installed packages"
-msgstr ""
+msgstr "montri nur instalitajn pakojn"
 
 #: ../dnf/cli/commands/__init__.py:183 ../dnf/cli/commands/__init__.py:762
 msgid "show only extras packages"
-msgstr ""
+msgstr "montri nur ceterajn pakojn"
 
 #: ../dnf/cli/commands/__init__.py:186 ../dnf/cli/commands/__init__.py:189
 #: ../dnf/cli/commands/__init__.py:765 ../dnf/cli/commands/__init__.py:768
 msgid "show only upgrades packages"
-msgstr ""
+msgstr "montri nur altgradigajn pakojn"
 
 #: ../dnf/cli/commands/__init__.py:192 ../dnf/cli/commands/__init__.py:771
 msgid "show only autoremove packages"
-msgstr ""
+msgstr "montri nur aŭtomate-forigi pakojn"
 
 #: ../dnf/cli/commands/__init__.py:195 ../dnf/cli/commands/__init__.py:774
 msgid "show only recently changed packages"
-msgstr ""
+msgstr "montri nur freŝdate aliigitajn pakojn"
 
 #: ../dnf/cli/commands/__init__.py:226
 msgid "list a package or groups of packages"
-msgstr ""
+msgstr "listigi pakon aŭ grupon de pakoj"
 
 #: ../dnf/cli/commands/__init__.py:240
 msgid "find what package provides the given value"
-msgstr ""
+msgstr "serĉi la pakon kiu provizas la specifitan valoron"
 
 #: ../dnf/cli/commands/__init__.py:244
 msgid "SOME_STRING"
-msgstr ""
+msgstr "IA_ĈENO"
 
 #: ../dnf/cli/commands/__init__.py:262
 msgid "check for available package upgrades"
-msgstr ""
+msgstr "kontroli por disponeblaj pakaj altgradigoj"
 
 #: ../dnf/cli/commands/__init__.py:268
 msgid "show changelogs before update"
@@ -1758,41 +1762,41 @@ msgstr ""
 #: ../dnf/cli/commands/__init__.py:364 ../dnf/cli/commands/__init__.py:417
 #: ../dnf/cli/commands/__init__.py:473
 msgid "No package available."
-msgstr ""
+msgstr "Neniu pako disponeblas."
 
 #: ../dnf/cli/commands/__init__.py:379
 msgid "No packages marked for install."
-msgstr ""
+msgstr "Neniu pako markita por instalo."
 
 #: ../dnf/cli/commands/__init__.py:415
 msgid "No package installed."
-msgstr ""
+msgstr "Neniu pako instalita."
 
 #: ../dnf/cli/commands/__init__.py:435 ../dnf/cli/commands/__init__.py:492
 #: ../dnf/cli/commands/reinstall.py:91
 #, python-format
 msgid " (from %s)"
-msgstr " (dari %s)"
+msgstr " (el %s)"
 
 #: ../dnf/cli/commands/__init__.py:436 ../dnf/cli/commands/__init__.py:493
 #: ../dnf/cli/commands/remove.py:104 ../dnf/cli/commands/reinstall.py:92
 #, python-format
 msgid "Installed package %s%s not available."
-msgstr ""
+msgstr "Instalita pako %s%s ne disponeblas."
 
 #: ../dnf/cli/commands/__init__.py:470 ../dnf/cli/commands/__init__.py:579
 #: ../dnf/cli/commands/__init__.py:622 ../dnf/cli/commands/__init__.py:669
 msgid "No package installed from the repository."
-msgstr ""
+msgstr "Neniu pako instalita el la deponejo."
 
 #: ../dnf/cli/commands/__init__.py:533 ../dnf/cli/commands/reinstall.py:101
 msgid "No packages marked for reinstall."
-msgstr ""
+msgstr "Neniu pako markita por reinstalo."
 
 #: ../dnf/cli/commands/__init__.py:684 ../dnf/cli/commands/remove.py:156
 #: ../dnf/base.py:2053
 msgid "No packages marked for removal."
-msgstr "Tidak ada paket ditandai untuk dihapus."
+msgstr "Neniu pako markita por forigo."
 
 #: ../dnf/cli/commands/__init__.py:729
 msgid "run commands on top of all packages in given repository"
@@ -1800,33 +1804,35 @@ msgstr ""
 
 #: ../dnf/cli/commands/__init__.py:743
 msgid "REPO"
-msgstr ""
+msgstr "DEPONEJO"
 
 #: ../dnf/cli/commands/__init__.py:801
 msgid "display a helpful usage message"
-msgstr ""
+msgstr "montri helpeman mesaĝon pri uzado"
 
 #: ../dnf/cli/commands/__init__.py:805
 msgid "COMMAND"
-msgstr ""
+msgstr "KOMANDO"
 
 #: ../dnf/cli/commands/__init__.py:821
 msgid "display, or use, the transaction history"
-msgstr ""
+msgstr "montri, aŭ uzi, la transakcian historion"
 
 #: ../dnf/cli/commands/__init__.py:836
 msgid ""
 "Found more than one transaction ID.\n"
 "'{}' requires one transaction ID or package name."
 msgstr ""
+"Trovis pli ol unu transakcian identigilon.\n"
+"“{}” bezonas unu transakcian identigilon aŭ pakonomon."
 
 #: ../dnf/cli/commands/__init__.py:843
 msgid "No transaction ID or package name given."
-msgstr ""
+msgstr "Neniu transakcia identigilo aŭ pakonomo specifita."
 
 #: ../dnf/cli/commands/__init__.py:856
 msgid "You don't have access to the history DB."
-msgstr "Anda tidak memiliki akses ke DB riwayat"
+msgstr "Vi ne havas atingon al la historia datumbazo."
 
 #: ../dnf/cli/commands/__init__.py:868
 #, python-format
@@ -1834,6 +1840,8 @@ msgid ""
 "Cannot undo transaction %s, doing so would result in an inconsistent package"
 " database."
 msgstr ""
+"Ne povas malfari transakcion %s, fari tion kaŭzus nekoheran pakan "
+"datumbazon."
 
 #: ../dnf/cli/commands/__init__.py:873
 #, python-format
@@ -1841,6 +1849,8 @@ msgid ""
 "Cannot rollback transaction %s, doing so would result in an inconsistent "
 "package database."
 msgstr ""
+"Ne povas ŝanĝomalfari transakcion %s, fari tion kaŭzus nekoheran pakan "
+"datumbazon."
 
 #: ../dnf/cli/commands/__init__.py:943
 msgid ""
@@ -1853,24 +1863,28 @@ msgid ""
 "Can't convert '{}' to transaction ID.\n"
 "Use '<integer>', 'last', 'last-<positive-integer>'."
 msgstr ""
+"Ne povas konverti “{}” al transakcia identigilo.\n"
+"Uzu “<entjero>”, “last”, “last-<pozitiva-entjero>”."
 
 #: ../dnf/cli/commands/__init__.py:976
 msgid "No transaction which manipulates package '{}' was found."
-msgstr ""
+msgstr "Neniu transakcio kiu manipulas la pakon “{}” estis trovita."
 
 #: ../dnf/cli/commands/downgrade.py:34
 msgid "Downgrade a package"
-msgstr ""
+msgstr "Malaltgradigi pakon"
 
 #: ../dnf/cli/commands/downgrade.py:38
 msgid "Package to downgrade"
-msgstr ""
+msgstr "Malaltgradigenda pako"
 
 #: ../dnf/cli/commands/upgrademinimal.py:31
 msgid ""
 "upgrade, but only 'newest' package match which fixes a problem that affects "
 "your system"
 msgstr ""
+"altgradigi, sed nur “plej nova” pakokongruo kiu riparas problemon, kiun via "
+"sistemo suferas"
 
 #: ../dnf/cli/commands/module.py:36
 #, python-brace-format
@@ -1881,7 +1895,7 @@ msgstr ""
 
 #: ../dnf/cli/commands/module.py:79 ../dnf/cli/commands/module.py:101
 msgid "No matching Modules to list"
-msgstr ""
+msgstr "Neniu kongruo modulo al listo"
 
 #: ../dnf/cli/commands/module.py:128
 msgid ""
@@ -1897,31 +1911,31 @@ msgstr ""
 
 #: ../dnf/cli/commands/module.py:262
 msgid "Interact with Modules."
-msgstr ""
+msgstr "Interagi kun moduloj."
 
 #: ../dnf/cli/commands/module.py:279
 msgid "show only enabled modules"
-msgstr ""
+msgstr "montri nur ŝaltitajn modulojn"
 
 #: ../dnf/cli/commands/module.py:282
 msgid "show only disabled modules"
-msgstr ""
+msgstr "montri nur malŝaltitajn modulojn"
 
 #: ../dnf/cli/commands/module.py:285
 msgid "show only installed modules"
-msgstr ""
+msgstr "montri nur instalitajn modulojn"
 
 #: ../dnf/cli/commands/module.py:288
 msgid "show profile content"
-msgstr ""
+msgstr "montri profilan enhavon"
 
 #: ../dnf/cli/commands/remove.py:46
 msgid "remove a package or packages from your system"
-msgstr ""
+msgstr "forigi pakon aŭ pakojn de via sistemo"
 
 #: ../dnf/cli/commands/remove.py:53
 msgid "remove duplicated packages"
-msgstr ""
+msgstr "forigi duobligitajn pakojn"
 
 #: ../dnf/cli/commands/remove.py:58
 msgid "remove installonly packages over the limit"
@@ -1929,7 +1943,7 @@ msgstr ""
 
 #: ../dnf/cli/commands/remove.py:94
 msgid "No duplicated packages found for removal."
-msgstr ""
+msgstr "Neniu duobligita pako trovita por forigo."
 
 #: ../dnf/cli/commands/remove.py:120
 msgid "No old installonly packages found for removal."
@@ -1939,299 +1953,303 @@ msgstr ""
 #: ../dnf/base.py:2036
 #, python-format
 msgid "Not a valid form: %s"
-msgstr ""
+msgstr "Ne estas valida formo: %s"
 
 #: ../dnf/cli/commands/updateinfo.py:42
 msgid "bugfix"
-msgstr "bugfix"
+msgstr "cimoriparo"
 
 #: ../dnf/cli/commands/updateinfo.py:43
 msgid "enhancement"
-msgstr ""
+msgstr "plibonigo"
 
 #: ../dnf/cli/commands/updateinfo.py:44
 msgid "security"
-msgstr "keamanan"
+msgstr "sekureco"
 
 #: ../dnf/cli/commands/updateinfo.py:45 ../dnf/cli/commands/updateinfo.py:279
 #: ../dnf/cli/commands/updateinfo.py:311 ../dnf/cli/commands/repolist.py:37
 msgid "unknown"
-msgstr "tidak diketahui"
+msgstr "nekonata"
 
 #: ../dnf/cli/commands/updateinfo.py:46
 msgid "newpackage"
-msgstr ""
+msgstr "novapako"
 
 #: ../dnf/cli/commands/updateinfo.py:48
 msgid "Critical/Sec."
-msgstr ""
+msgstr "Kritika/Sek."
 
 #: ../dnf/cli/commands/updateinfo.py:49
 msgid "Important/Sec."
-msgstr ""
+msgstr "Grava/Sek."
 
 #: ../dnf/cli/commands/updateinfo.py:50
 msgid "Moderate/Sec."
-msgstr ""
+msgstr "Meza/Sek."
 
 #: ../dnf/cli/commands/updateinfo.py:51
 msgid "Low/Sec."
-msgstr ""
+msgstr "Malalta/Sek."
 
 #: ../dnf/cli/commands/updateinfo.py:61
 msgid "display advisories about packages"
-msgstr ""
+msgstr "montri konsilojn pri pakoj"
 
 #: ../dnf/cli/commands/updateinfo.py:75
 msgid "advisories about newer versions of installed packages (default)"
-msgstr ""
+msgstr "konsiloj pri pli novaj versioj de instalitaj pakoj (implicita)"
 
 #: ../dnf/cli/commands/updateinfo.py:78
 msgid "advisories about equal and older versions of installed packages"
-msgstr ""
+msgstr "konsiloj pri egalaj kaj pli malnovaj versioj de instalitaj pakoj"
 
 #: ../dnf/cli/commands/updateinfo.py:81
 msgid ""
 "advisories about newer versions of those installed packages for which a "
 "newer version is available"
 msgstr ""
+"konsiloj pri pli novaj versioj de tiuj instalitaj pakoj por kiuj disponeblas"
+" novaj versioj"
 
 #: ../dnf/cli/commands/updateinfo.py:85
 msgid "advisories about any versions of installed packages"
-msgstr ""
+msgstr "konsiloj pri iu ajn versioj de instalitaj pakoj"
 
 #: ../dnf/cli/commands/updateinfo.py:90
 msgid "show summary of advisories (default)"
-msgstr ""
+msgstr "montri resumon de konsiloj (implicita)"
 
 #: ../dnf/cli/commands/updateinfo.py:93
 msgid "show list of advisories"
-msgstr ""
+msgstr "montri liston de konsiloj"
 
 #: ../dnf/cli/commands/updateinfo.py:96
 msgid "show info of advisories"
-msgstr ""
+msgstr "montri informojn de konsiloj"
 
 #: ../dnf/cli/commands/updateinfo.py:126
 msgid "installed"
-msgstr "terpasang"
+msgstr "instalitaj"
 
 #: ../dnf/cli/commands/updateinfo.py:129
 msgid "updates"
-msgstr "pembaruan"
+msgstr "ĝisdatigoj"
 
 #: ../dnf/cli/commands/updateinfo.py:133
 msgid "all"
-msgstr "semua"
+msgstr "ĉiuj"
 
 #: ../dnf/cli/commands/updateinfo.py:136
 msgid "available"
-msgstr "tersedia"
+msgstr "disponeblaj"
 
 #: ../dnf/cli/commands/updateinfo.py:239
 msgid "Updates Information Summary: "
-msgstr ""
+msgstr "Informa resumo de ĝisdatigoj: "
 
 #: ../dnf/cli/commands/updateinfo.py:242
 msgid "New Package notice(s)"
-msgstr ""
+msgstr "Sciigoj pri novaj pakoj"
 
 #: ../dnf/cli/commands/updateinfo.py:243
 msgid "Security notice(s)"
-msgstr ""
+msgstr "Sekurecaj sciigoj"
 
 #: ../dnf/cli/commands/updateinfo.py:244
 msgid "Critical Security notice(s)"
-msgstr ""
+msgstr "Kritikaj sekurecaj sciigoj"
 
 #: ../dnf/cli/commands/updateinfo.py:246
 msgid "Important Security notice(s)"
-msgstr ""
+msgstr "Gravaj sekurecaj sciigoj"
 
 #: ../dnf/cli/commands/updateinfo.py:248
 msgid "Moderate Security notice(s)"
-msgstr ""
+msgstr "Mezaj sekurecaj sciigoj"
 
 #: ../dnf/cli/commands/updateinfo.py:250
 msgid "Low Security notice(s)"
-msgstr ""
+msgstr "Malaltaj sekurecaj sciigoj"
 
 #: ../dnf/cli/commands/updateinfo.py:252
 msgid "Unknown Security notice(s)"
-msgstr ""
+msgstr "Nekonataj sekurecaj sciigoj"
 
 #: ../dnf/cli/commands/updateinfo.py:254
 msgid "Bugfix notice(s)"
-msgstr ""
+msgstr "Cimoriparaj sciigoj"
 
 #: ../dnf/cli/commands/updateinfo.py:255
 msgid "Enhancement notice(s)"
-msgstr ""
+msgstr "Plibonigaj sciigoj"
 
 #: ../dnf/cli/commands/updateinfo.py:256
 msgid "other notice(s)"
-msgstr ""
+msgstr "aliaj sciigoj"
 
 #: ../dnf/cli/commands/updateinfo.py:277
 msgid "Unknown/Sec."
-msgstr ""
+msgstr "Nekonata/Sek."
 
 #: ../dnf/cli/commands/updateinfo.py:304
 msgid "Update ID"
-msgstr "ID Pembaruan"
+msgstr "Ĝisdatiga identigilo"
 
 #: ../dnf/cli/commands/updateinfo.py:304
 msgid "Type"
-msgstr "Tipe"
+msgstr "Speco"
 
 #: ../dnf/cli/commands/updateinfo.py:304
 msgid "Updated"
-msgstr "Diperbarui"
+msgstr "Ĝisdatigitaj"
 
 #: ../dnf/cli/commands/updateinfo.py:304
 msgid "Bugs"
-msgstr "Bug"
+msgstr "Cimoj"
 
 #: ../dnf/cli/commands/updateinfo.py:305
 msgid "CVEs"
-msgstr "CVE"
+msgstr "CVE-oj"
 
 #: ../dnf/cli/commands/updateinfo.py:305
 msgid "Description"
-msgstr "Keterangan"
+msgstr "Priskribo"
 
 #: ../dnf/cli/commands/updateinfo.py:305
 msgid "Severity"
-msgstr ""
+msgstr "Graveco"
 
 #: ../dnf/cli/commands/updateinfo.py:305
 msgid "Rights"
-msgstr ""
+msgstr "Rajtoj"
 
 #: ../dnf/cli/commands/updateinfo.py:306
 msgid "Files"
-msgstr "Berkas"
+msgstr "Dosieroj"
 
 #: ../dnf/cli/commands/updateinfo.py:332
 msgid "true"
-msgstr ""
+msgstr "vera"
 
 #: ../dnf/cli/commands/updateinfo.py:332
 msgid "false"
-msgstr ""
+msgstr "malvera"
 
 #: ../dnf/cli/commands/mark.py:39
 msgid "mark or unmark installed packages as installed by user."
-msgstr ""
+msgstr "marki aŭ malmarki instalitajn pakojn kiel instalitaj de uzanto."
 
 #: ../dnf/cli/commands/mark.py:49
 #, python-format
 msgid "%s marked as user installed."
-msgstr ""
+msgstr "%s markita kiel uzanto-instalita."
 
 #: ../dnf/cli/commands/mark.py:53
 #, python-format
 msgid "%s unmarked as user installed."
-msgstr ""
+msgstr "%s malmarkita kiel uzanto-instalita."
 
 #: ../dnf/cli/commands/mark.py:57
 #, python-format
 msgid "%s marked as group installed."
-msgstr ""
+msgstr "%s markita kiel grupo-instalita."
 
 #: ../dnf/cli/commands/mark.py:82 ../dnf/cli/commands/shell.py:121
 #: ../dnf/cli/commands/shell.py:230
 msgid "Error:"
-msgstr ""
+msgstr "Eraro:"
 
 #: ../dnf/cli/commands/mark.py:84
 #, python-format
 msgid "Package %s is not installed."
-msgstr ""
+msgstr "Pako %s ne estas instalita."
 
 #: ../dnf/cli/commands/deplist.py:32
 msgid "List package's dependencies and what packages provide them"
-msgstr ""
+msgstr "Listigi dependecojn de pako, kaj kiuj pakoj provizas ilin"
 
 #: ../dnf/cli/commands/clean.py:68
 #, python-format
 msgid "Removing file %s"
-msgstr ""
+msgstr "Forigante dosieron %s"
 
 #: ../dnf/cli/commands/clean.py:87
 msgid "remove cached data"
-msgstr "hapus data tersinggah"
+msgstr "forigi kaŝmemorajn datumojn"
 
 #: ../dnf/cli/commands/clean.py:93
 msgid "Metadata type to clean"
-msgstr "Tipe metadata yang akan dibersihkan"
+msgstr "Purigenda metadatuma speco"
 
 #: ../dnf/cli/commands/clean.py:105
 msgid "Cleaning data:  "
-msgstr "Membersihkan data:  "
+msgstr "Purigante datumojn:  "
 
 #: ../dnf/cli/commands/clean.py:111
 msgid "Cache was expired"
-msgstr "Singgahan kedaluwarsa"
+msgstr "Kaŝmemoro senvalidiĝis"
 
 #: ../dnf/cli/commands/clean.py:115
 #, python-format
 msgid "%d file removed"
 msgid_plural "%d files removed"
-msgstr[0] "%d berkas dihapus"
+msgstr[0] "%d dosiero forigita"
+msgstr[1] "%d dosieroj forigitaj"
 
 #: ../dnf/cli/commands/clean.py:119 ../dnf/lock.py:139
 #, python-format
 msgid "Waiting for process with pid %d to finish."
-msgstr "Menunggu proses dengan pid %d berakhir."
+msgstr "Atendante por fino de procezo kun pid %d."
 
 #: ../dnf/cli/commands/install.py:47
 msgid "install a package or packages on your system"
-msgstr ""
+msgstr "instali pakon aŭ pakojn sur via sistemo"
 
 #: ../dnf/cli/commands/install.py:53
 msgid "Package to install"
-msgstr ""
+msgstr "Instalenda pako"
 
 #: ../dnf/cli/commands/install.py:118
 msgid "Unable to find a match"
-msgstr ""
+msgstr "Ne eblas trovi kongruon"
 
 #: ../dnf/cli/commands/install.py:131
 #, python-format
 msgid "Not a valid rpm file path: %s"
-msgstr ""
+msgstr "Ne estas valida rpm-dosiervojo: %s"
 
 #: ../dnf/cli/commands/install.py:167
 #, python-brace-format
 msgid "There are following alternatives for \"{0}\": {1}"
-msgstr ""
+msgstr "Estas sekvaj alternativoj por “{0}”: {1}"
 
 #: ../dnf/cli/commands/repoquery.py:104
 msgid "search for packages matching keyword"
-msgstr ""
+msgstr "serĉi pakojn kiuj kongruas ŝlosilvorton"
 
 #: ../dnf/cli/commands/repoquery.py:118
 msgid "the key to search for"
-msgstr ""
+msgstr "la serĉenda ŝlosilo"
 
 #: ../dnf/cli/commands/repoquery.py:120
 msgid ""
 "Query all packages (shorthand for repoquery '*' or repoquery without "
 "argument)"
 msgstr ""
+"Informpeti ĉiujn pakojn (kurta por repoquery '*' aŭ repoquery sen argumento)"
 
 #: ../dnf/cli/commands/repoquery.py:123
 msgid "Query all versions of packages (default)"
-msgstr ""
+msgstr "Informpeti ĉiujn versiojn de pakoj (implicita)"
 
 #: ../dnf/cli/commands/repoquery.py:126
 msgid "show only results from this ARCH"
-msgstr ""
+msgstr "montri nur rezultojn el ĉi tiu ARĤITEKTURO"
 
 #: ../dnf/cli/commands/repoquery.py:128
 msgid "show only results that owns FILE"
-msgstr ""
+msgstr "montri nur rezultojn al kiuj apartenas DOSIERON"
 
 #: ../dnf/cli/commands/repoquery.py:130
 msgid "show only results that conflict REQ"
@@ -2317,7 +2335,7 @@ msgstr ""
 
 #: ../dnf/cli/commands/repoquery.py:176
 msgid "show list of files in the package"
-msgstr ""
+msgstr "montri liston de dosieroj ene de la pako"
 
 #: ../dnf/cli/commands/repoquery.py:179
 msgid "show package source RPM name"
@@ -2411,11 +2429,11 @@ msgstr ""
 
 #: ../dnf/cli/commands/repoquery.py:234
 msgid "Display only available packages."
-msgstr ""
+msgstr "Montri nur disponeblajn pakojn."
 
 #: ../dnf/cli/commands/repoquery.py:237
 msgid "Display only installed packages."
-msgstr ""
+msgstr "Montri nur instalitajn pakojn."
 
 #: ../dnf/cli/commands/repoquery.py:238
 msgid ""
@@ -2479,65 +2497,65 @@ msgstr ""
 #: ../dnf/cli/commands/repolist.py:39
 #, python-format
 msgid "Never (last: %s)"
-msgstr "Tak Pernah (terakhir: %s)"
+msgstr "Neniam (lasta: %s)"
 
 #: ../dnf/cli/commands/repolist.py:41
 #, python-format
 msgid "Instant (last: %s)"
-msgstr ""
+msgstr "Tuj (lasta: %s)"
 
 #: ../dnf/cli/commands/repolist.py:44
 #, python-format
 msgid "%s second(s) (last: %s)"
-msgstr "%s detik (terakhir: %s)"
+msgstr "%s sekundo(j) (lasta: %s)"
 
 #: ../dnf/cli/commands/repolist.py:75
 msgid "display the configured software repositories"
-msgstr "tampilkan repositori perangkat lunak yang terkonfigurasi"
+msgstr ""
 
 #: ../dnf/cli/commands/repolist.py:82
 msgid "show all repos"
-msgstr "tampilkan semua repo"
+msgstr "montri ĉiujn deponejojn"
 
 #: ../dnf/cli/commands/repolist.py:85
 msgid "show enabled repos (default)"
-msgstr "tampilkan repo aktif (baku)"
+msgstr "montri ŝaltitajn deponejojn (implicita)"
 
 #: ../dnf/cli/commands/repolist.py:88
 msgid "show disabled repos"
-msgstr "tampilkan repo nonaktif"
+msgstr "montri malŝaltitajn deponejojn"
 
 #: ../dnf/cli/commands/repolist.py:123
 msgid "No repositories available"
-msgstr "Tidak ada repositori yang tersedia"
+msgstr "Neniu deponejo disponeblas"
 
 #: ../dnf/cli/commands/repolist.py:145 ../dnf/cli/commands/repolist.py:146
 msgid "enabled"
-msgstr "aktif"
+msgstr "ŝaltita"
 
 #: ../dnf/cli/commands/repolist.py:163 ../dnf/cli/commands/repolist.py:164
 msgid "disabled"
-msgstr "nonaktif"
+msgstr "malŝaltita"
 
 #: ../dnf/cli/commands/repolist.py:179
 msgid "Repo-id      : "
-msgstr "ID-repo      : "
+msgstr "Deponeja identigilo: "
 
 #: ../dnf/cli/commands/repolist.py:180
 msgid "Repo-name    : "
-msgstr "Nama-repo    : "
+msgstr "Deponeja nomo      : "
 
 #: ../dnf/cli/commands/repolist.py:183
 msgid "Repo-status  : "
-msgstr "Status-repo  : "
+msgstr "Deponeja stato     : "
 
 #: ../dnf/cli/commands/repolist.py:186
 msgid "Repo-revision: "
-msgstr "Revisi-repo: "
+msgstr ""
 
 #: ../dnf/cli/commands/repolist.py:190
 msgid "Repo-tags    : "
-msgstr "Tag-repo    : "
+msgstr "Deponejaj markoj   : "
 
 #: ../dnf/cli/commands/repolist.py:197
 msgid "Repo-distro-tags: "
@@ -2553,7 +2571,7 @@ msgstr ""
 
 #: ../dnf/cli/commands/repolist.py:206
 msgid "Repo-size    : "
-msgstr "Ukuran-repo    : "
+msgstr "Deponeja grandeco  : "
 
 #: ../dnf/cli/commands/repolist.py:209
 msgid "Repo-metalink: "
@@ -2561,7 +2579,7 @@ msgstr ""
 
 #: ../dnf/cli/commands/repolist.py:214
 msgid "  Updated    : "
-msgstr ""
+msgstr "  Ĝisdatigita        : "
 
 #: ../dnf/cli/commands/repolist.py:216
 msgid "Repo-mirrors : "
@@ -2591,27 +2609,27 @@ msgstr ""
 
 #: ../dnf/cli/commands/repolist.py:246
 msgid "Repo-filename: "
-msgstr "Repo-namaberkas: "
+msgstr ""
 
 #. Work out the first (id) and last (enabled/disalbed/count),
 #. then chop the middle (name)...
 #: ../dnf/cli/commands/repolist.py:254 ../dnf/cli/commands/repolist.py:283
 msgid "repo id"
-msgstr "id repo"
+msgstr "deponeja identigilo"
 
 #: ../dnf/cli/commands/repolist.py:271 ../dnf/cli/commands/repolist.py:272
 #: ../dnf/cli/commands/repolist.py:288
 msgid "status"
-msgstr "status"
+msgstr "stato"
 
 #: ../dnf/cli/commands/repolist.py:284
 msgid "repo name"
-msgstr "nama repo"
+msgstr "nomo de deponejo"
 
 #: ../dnf/cli/commands/repolist.py:300
 #, python-format
 msgid "Total packages: %s"
-msgstr ""
+msgstr "Totalaj pakoj: %s"
 
 #: ../dnf/cli/commands/shell.py:47
 msgid "run an interactive DNF shell"
@@ -2619,20 +2637,20 @@ msgstr ""
 
 #: ../dnf/cli/commands/shell.py:68
 msgid "SCRIPT"
-msgstr ""
+msgstr "SKRIPTO"
 
 #: ../dnf/cli/commands/shell.py:69
 msgid "Script to run in DNF shell"
-msgstr ""
+msgstr "Rulenda skripto en DNF ŝelo"
 
 #: ../dnf/cli/commands/shell.py:135
 msgid "Unsupported key value."
-msgstr ""
+msgstr "Nesubtenita ŝlosilvaloro."
 
 #: ../dnf/cli/commands/shell.py:151
 #, python-format
 msgid "Could not find repository: %s"
-msgstr ""
+msgstr "Ne povis trovi deponejon: %s"
 
 #: ../dnf/cli/commands/shell.py:167
 msgid ""
@@ -2642,12 +2660,19 @@ msgid ""
 "    If no value is given it prints the current value.\n"
 "    If value is given it sets that value."
 msgstr ""
+"{} argumento [valoro]\n"
+"  argumento: debugleve, errorleve, obsoletes, gpgcheck, assumeyes, exclude,\n"
+"        repo_id.gpgcheck, repo_id.exclude\n"
+"    Se neniu valoro estas specifita, tiam la aktuala valoro estas presita.\n"
+"    Se valoro estas specifita, tiam tiu valoro estas agordita."
 
 #: ../dnf/cli/commands/shell.py:174
 msgid ""
 "{} [command]\n"
 "    print help"
 msgstr ""
+"{} [komando]\n"
+"    presi helpon"
 
 #: ../dnf/cli/commands/shell.py:178
 msgid ""
@@ -2656,12 +2681,18 @@ msgid ""
 "  enable: enable repositories. option = repository id\n"
 "  disable: disable repositories. option = repository id"
 msgstr ""
+"{} argumento [opcio]\n"
+"  list: listigi deponejojn kaj ilian stato. opcio = [ all | id | glob]\n"
+"  enable: ŝalti deponejojn. opcio = deponeja identigilo\n"
+"  disable: malŝalti deponejojn. opcio = deponeja identigilo"
 
 #: ../dnf/cli/commands/shell.py:184
 msgid ""
 "{}\n"
 "    resolve the transaction set"
 msgstr ""
+"{}\n"
+"    solvi la transakcian aron"
 
 #: ../dnf/cli/commands/shell.py:188
 msgid ""
@@ -2670,18 +2701,26 @@ msgid ""
 "  reset: reset (zero-out) the transaction\n"
 "  run: run the transaction"
 msgstr ""
+"{} argumento\n"
+"  list: listigi la enhavojn de la transakcio\n"
+"  reset: reagordi (nuligi per nuloj) la transakcion\n"
+"  run: ruli la transakcion"
 
 #: ../dnf/cli/commands/shell.py:194
 msgid ""
 "{}\n"
 "    run the transaction"
 msgstr ""
+"{}\n"
+"    ruli la transakcion"
 
 #: ../dnf/cli/commands/shell.py:198
 msgid ""
 "{}\n"
 "    exit the shell"
 msgstr ""
+"{}\n"
+"    ĉesigi la ŝelon"
 
 #: ../dnf/cli/commands/shell.py:203
 msgid ""
@@ -2699,24 +2738,24 @@ msgstr ""
 #: ../dnf/cli/commands/shell.py:253
 #, python-format
 msgid "Error: Cannot open %s for reading"
-msgstr ""
+msgstr "Eraro: Ne povas malfermi %s por legado"
 
 #: ../dnf/cli/commands/shell.py:283
 msgid "Leaving Shell"
-msgstr ""
+msgstr "Forlasante ŝelon"
 
 #: ../dnf/cli/commands/reinstall.py:38
 msgid "reinstall a package"
-msgstr "Pasang ulang sebuah paket"
+msgstr "reinstali pakon"
 
 #: ../dnf/cli/commands/reinstall.py:42
 msgid "Package to reinstall"
-msgstr ""
+msgstr "Reinstalenda pako"
 
 #: ../dnf/cli/commands/reinstall.py:81 ../dnf/base.py:1987
 #, python-format
 msgid "Package %s available, but not installed."
-msgstr ""
+msgstr "Pako %s disponeblas, sed ne estas instalita."
 
 #: ../dnf/cli/commands/swap.py:33
 msgid "run an interactive dnf mod for remove and install one spec"
@@ -2732,74 +2771,74 @@ msgstr ""
 
 #: ../dnf/cli/commands/group.py:45
 msgid "display, or use, the groups information"
-msgstr "tampilkan atau pakai informasi grup"
+msgstr "montri, aŭ uzi, la informojn de grupoj"
 
 #: ../dnf/cli/commands/group.py:70
 msgid "No group data available for configured repositories."
-msgstr "Tidak ada data grup yang tersedia untuk repositori terkonfigurasi."
+msgstr "Neniu grupdatumoj disponeblas por agorditaj deponejoj."
 
 #: ../dnf/cli/commands/group.py:127
 #, python-format
 msgid "Warning: Group %s does not exist."
-msgstr "Peringatan: Grup %s tidak ada."
+msgstr "Averto: Grupo %s ne ekzistas."
 
 #: ../dnf/cli/commands/group.py:161
 msgid "Warning: No groups match:"
-msgstr "Peringatan: Tidak ada grup yang cocok:"
+msgstr "Averto: Neniu grupo kongruas:"
 
 #: ../dnf/cli/commands/group.py:190
 msgid "Available Environment Groups:"
-msgstr "Grup Lingkungan yang Tersedia:"
+msgstr "Disponeblaj mediaj grupoj:"
 
 #: ../dnf/cli/commands/group.py:192
 msgid "Installed Environment Groups:"
-msgstr "Grup Lingkungan yang Terpasang:"
+msgstr "Instalitaj mediaj grupoj:"
 
 #: ../dnf/cli/commands/group.py:199 ../dnf/cli/commands/group.py:285
 msgid "Installed Groups:"
-msgstr "Grup yang Terpasang:"
+msgstr "Instalitaj grupoj:"
 
 #: ../dnf/cli/commands/group.py:206 ../dnf/cli/commands/group.py:292
 msgid "Installed Language Groups:"
-msgstr "Grup-grup Bahasa yang Terpasang:"
+msgstr "Instalitaj lingvaj grupoj:"
 
 #: ../dnf/cli/commands/group.py:216 ../dnf/cli/commands/group.py:299
 msgid "Available Groups:"
-msgstr "Grup yang Tersedia:"
+msgstr "Disponeblaj grupoj:"
 
 #: ../dnf/cli/commands/group.py:223 ../dnf/cli/commands/group.py:306
 msgid "Available Language Groups:"
-msgstr "Grup-grup Bahasa yang Tersedia:"
+msgstr "Disponeblaj lingvaj grupoj:"
 
 #: ../dnf/cli/commands/group.py:313
 msgid "include optional packages from group"
-msgstr "sertakan paket opsional dari grup"
+msgstr "inkluzivi malneprajn pakojn el grupo"
 
 #: ../dnf/cli/commands/group.py:316
 msgid "show also hidden groups"
-msgstr "tampilkan juga grup tersembunyi"
+msgstr "montri ankaŭ kaŝitajn grupojn"
 
 #: ../dnf/cli/commands/group.py:318
 msgid "show only installed groups"
-msgstr "hanya tampilkan grup yang terpasang"
+msgstr "montru nur instalitajn grupojn"
 
 #: ../dnf/cli/commands/group.py:320
 msgid "show only available groups"
-msgstr "hanya tampilkan grup yang tersedia"
+msgstr "montri nur disponeblajn grupojn"
 
 #: ../dnf/cli/commands/group.py:332
 #, python-format
 msgid "Invalid groups sub-command, use: %s."
-msgstr "Sub-perintah grup-grup tidak valid, gunakan: %s."
+msgstr "Nevalida grupo-subkomando, uzu: %s."
 
 #: ../dnf/cli/commands/group.py:389
 msgid "Unable to find a mandatory group package."
-msgstr "Tidak bisa menemukan paket grup wajib."
+msgstr "Ne eblas trovi nepran gruppakon."
 
 #: ../dnf/db/group.py:344
 #, python-format
 msgid "Will not install a source rpm package (%s)."
-msgstr ""
+msgstr "Ne instalos fontan rpm-pakon (%s)"
 
 #: ../dnf/repo.py:83
 #, python-format
@@ -2808,12 +2847,12 @@ msgstr ""
 
 #: ../dnf/repo.py:110
 msgid "Already downloaded"
-msgstr ""
+msgstr "Jam elŝutita"
 
 #: ../dnf/repo.py:267 ../dnf/drpm.py:62
 #, python-format
 msgid "unsupported checksum type: %s"
-msgstr "tipe pengecekan tidak didukung: %s"
+msgstr "mesubtenita kontrolsuma speco: %s"
 
 #. pinging mirrors, this might take a while
 #: ../dnf/repo.py:345
@@ -2827,6 +2866,9 @@ msgid ""
 "\n"
 "Hint: [d]efault, [e]nabled, [x]disabled, [i]nstalled"
 msgstr ""
+"\n"
+"\n"
+"Konsileto: [d]implicita, [e]ŝaltita, [x]malŝaltita, [i]nstalita"
 
 #: ../dnf/module/module_base.py:34
 msgid ""
@@ -2838,31 +2880,31 @@ msgstr ""
 #: ../dnf/module/module_base.py:46 ../dnf/module/module_base.py:362
 #: ../dnf/module/module_base.py:418 ../dnf/module/module_base.py:476
 msgid "Ignoring unnecessary profile: '{}/{}'"
-msgstr ""
+msgstr "Malatente nenecesan profilon: “{}/{}”"
 
 #: ../dnf/module/module_base.py:79 ../dnf/module/module_base.py:173
 #: ../dnf/module/module_base.py:197
 msgid "Unable to match profile in argument {}"
-msgstr ""
+msgstr "Ne eblas kongrui profilon en argumento {}"
 
 #: ../dnf/module/module_base.py:86
 msgid "No default profiles for module {}:{}"
-msgstr ""
+msgstr "Neniu implicita profilo por modulo {}:{}"
 
 #: ../dnf/module/module_base.py:92
 msgid "Profile {} not matched for module {}:{}"
-msgstr ""
+msgstr "Profilo {} ne kongruas por modulo {}:{}"
 
 #: ../dnf/module/module_base.py:118 ../dnf/module/module_base.py:148
 #: ../dnf/module/module_base.py:278 ../dnf/module/module_base.py:296
 #: ../dnf/module/module_base.py:304 ../dnf/module/module_base.py:358
 #: ../dnf/module/module_base.py:414 ../dnf/module/module_base.py:472
 msgid "Unable to resolve argument {}"
-msgstr ""
+msgstr "Ne eblas solvi argumenton {}"
 
 #: ../dnf/module/module_base.py:119
 msgid "No match for package {}"
-msgstr ""
+msgstr "Neniu kongruo por pako {}"
 
 #: ../dnf/module/module_base.py:308
 msgid ""
@@ -2873,42 +2915,43 @@ msgstr ""
 msgid "Modular dependency problem:"
 msgid_plural "Modular dependency problems:"
 msgstr[0] ""
+msgstr[1] ""
 
 #: ../dnf/module/__init__.py:26
 msgid "Enabling different stream for '{}'."
-msgstr ""
+msgstr "Ŝaltante alian fluon por “{}”."
 
 #: ../dnf/module/__init__.py:27
 msgid "Nothing to show."
-msgstr ""
+msgstr "Nenio montrenda."
 
 #: ../dnf/module/__init__.py:28
 msgid "Installing newer version of '{}' than specified. Reason: {}"
-msgstr ""
+msgstr "Instalante pli novan version de “{}” ol specifita. Kialo: {}"
 
 #: ../dnf/module/__init__.py:29
 msgid "Enabled modules: {}."
-msgstr ""
+msgstr "Ŝaltitaj moduloj: {}."
 
 #: ../dnf/module/__init__.py:30
 msgid "No profile specified for '{}', please specify profile."
-msgstr ""
+msgstr "Neniu profilo specifita por “{}”, bonvolu specifi profilon."
 
 #: ../dnf/dnssec.py:239
 msgid "DNSSEC extension: Key for user "
-msgstr ""
+msgstr "DNSSEC-etendaĵo: Ŝlosilo por uzanto "
 
 #: ../dnf/dnssec.py:241
 msgid "is valid."
-msgstr ""
+msgstr "estas valida."
 
 #: ../dnf/dnssec.py:243
 msgid "has unknown status."
-msgstr ""
+msgstr "havas nekonatan staton."
 
 #: ../dnf/dnssec.py:251
 msgid "DNSSEC extension: "
-msgstr ""
+msgstr "DNSSEC-etendaĵo: "
 
 #: ../dnf/dnssec.py:283
 msgid "Testing already imported keys for their validity."
@@ -2926,72 +2969,72 @@ msgstr ""
 
 #: ../dnf/automatic/main.py:231
 msgid "Started dnf-automatic."
-msgstr ""
+msgstr "Komencis dnf-automatic."
 
 #: ../dnf/automatic/main.py:235
 #, python-format
 msgid "Sleep for %s seconds"
-msgstr ""
+msgstr "Dormi por %s sekundoj"
 
 #: ../dnf/automatic/emitter.py:31
 #, python-format
 msgid "The following updates have been applied on '%s':"
-msgstr "Pembaruan berikut telah diterapkan pada '%s':"
+msgstr ""
 
 #: ../dnf/automatic/emitter.py:32
 #, python-format
 msgid "The following updates are available on '%s':"
-msgstr "Pembaruan berikut tersedia pada '%s':"
+msgstr ""
 
 #: ../dnf/automatic/emitter.py:33
 #, python-format
 msgid "The following updates were downloaded on '%s':"
-msgstr "Pembaruan berikut diunduh pada '%s':"
+msgstr ""
 
 #: ../dnf/automatic/emitter.py:80
 #, python-format
 msgid "Updates applied on '%s'."
-msgstr "Pembaruan diterapkan pada '%s'."
+msgstr ""
 
 #: ../dnf/automatic/emitter.py:82
 #, python-format
 msgid "Updates downloaded on '%s'."
-msgstr "Pembaruan diunduh pada '%s'."
+msgstr ""
 
 #: ../dnf/automatic/emitter.py:84
 #, python-format
 msgid "Updates available on '%s'."
-msgstr "Pembaruan tersedia pada '%s'."
+msgstr ""
 
 #: ../dnf/automatic/emitter.py:107
 #, python-format
 msgid "Failed to send an email via '%s': %s"
-msgstr "Gagal mengirim surel melalui '%s': %s"
+msgstr "Malsukcesis sendi retmesaĝon per “%s”: %s"
 
 #: ../dnf/automatic/emitter.py:137
 #, python-format
 msgid "Failed to execute command '%s': returned %d"
-msgstr "Gagal mengeksekusi perintah '%s': mengembalikan %d"
+msgstr "Malsukcesis lanĉi komandon “%s”: ricevis %d"
 
 #: ../dnf/exceptions.py:107
 msgid "Problems in request:"
-msgstr ""
+msgstr "Problemoj en peto:"
 
 #: ../dnf/exceptions.py:109
 msgid "missing packages: "
-msgstr ""
+msgstr "mankantaj pakoj: "
 
 #: ../dnf/exceptions.py:111
 msgid "broken packages: "
-msgstr ""
+msgstr "rompitaj pakoj: "
 
 #: ../dnf/exceptions.py:113
 msgid "missing groups or modules: "
-msgstr ""
+msgstr "mankantaj grupoj aŭ moduloj: "
 
 #: ../dnf/exceptions.py:115
 msgid "broken groups or modules: "
-msgstr ""
+msgstr "rompitaj grupoj aŭ moduloj: "
 
 #: ../dnf/exceptions.py:120
 msgid "Modular dependency problem with Defaults:"
@@ -3002,7 +3045,7 @@ msgstr[0] ""
 #: ../dnf/persistor.py:54
 #, python-format
 msgid "%s is empty file"
-msgstr "%s adalah sebuah berkas kosong"
+msgstr "%s estas malplena dosiero"
 
 #: ../dnf/persistor.py:98
 msgid "Failed storing last makecache time."
@@ -3014,15 +3057,15 @@ msgstr ""
 
 #: ../dnf/util.py:381 ../dnf/util.py:383
 msgid "Problem"
-msgstr ""
+msgstr "Problemo"
 
 #: ../dnf/base.py:146
 msgid "loading repo '{}' failure: {}"
-msgstr ""
+msgstr "ŝargante deponejon “{}” fiasko: {}"
 
 #: ../dnf/base.py:148
 msgid "Loading repository '{}' has failed"
-msgstr ""
+msgstr "Ŝargado de deponejo “{}” malsukcesis"
 
 #: ../dnf/base.py:335
 msgid "Metadata timer caching disabled when running on metered connection."
@@ -3064,12 +3107,12 @@ msgstr ""
 #. performs the md sync
 #: ../dnf/base.py:378
 msgid "Metadata cache created."
-msgstr ""
+msgstr "Metadatuma kaŝmemoro kreita."
 
 #: ../dnf/base.py:414
 #, python-format
 msgid "%s: using metadata from %s."
-msgstr ""
+msgstr "%s: uzante metadatumojn el %s."
 
 #: ../dnf/base.py:425
 #, python-format
@@ -3079,7 +3122,7 @@ msgstr ""
 #: ../dnf/base.py:428
 #, python-format
 msgid "Last metadata expiration check: %s ago on %s."
-msgstr ""
+msgstr "Lasta kontrolo de metadatuma senvalidiĝo: antaŭ %s je %s."
 
 #: ../dnf/base.py:458
 msgid ""
@@ -3128,21 +3171,22 @@ msgstr ""
 
 #: ../dnf/base.py:881
 msgid "Running transaction"
-msgstr ""
+msgstr "Rulante transakcion"
 
 #: ../dnf/base.py:907
 msgid "Disk Requirements:"
-msgstr ""
+msgstr "Diskaj bezonoj:"
 
 #: ../dnf/base.py:910
 #, python-format
 msgid "At least %dMB more space needed on the %s filesystem."
 msgid_plural "At least %dMB more space needed on the %s filesystem."
 msgstr[0] ""
+msgstr[1] ""
 
 #: ../dnf/base.py:914
 msgid "Error Summary"
-msgstr ""
+msgstr "Resumo de eraro(j)"
 
 #: ../dnf/base.py:940
 msgid "RPMDB altered outside of DNF."
@@ -3188,7 +3232,7 @@ msgstr ""
 
 #: ../dnf/base.py:1184
 msgid "Could not open: {}"
-msgstr ""
+msgstr "Ne povis malfermi: {}"
 
 #: ../dnf/base.py:1222
 #, python-format
@@ -3198,7 +3242,7 @@ msgstr ""
 #: ../dnf/base.py:1226
 #, python-format
 msgid "Problem opening package %s"
-msgstr ""
+msgstr "Problemo dum malfermado de pako %s"
 
 #: ../dnf/base.py:1234
 #, python-format
@@ -3213,21 +3257,21 @@ msgstr ""
 #: ../dnf/base.py:1253
 #, python-format
 msgid "Cannot remove %s"
-msgstr ""
+msgstr "Ne povas forigi %s"
 
 #: ../dnf/base.py:1257
 #, python-format
 msgid "%s removed"
-msgstr ""
+msgstr "%s forigita"
 
 #: ../dnf/base.py:1529
 msgid "No match for group package \"{}\""
-msgstr ""
+msgstr "Neniu kongruo por grupa pako “{}”"
 
 #: ../dnf/base.py:1614
 #, python-format
 msgid "Adding packages from group '%s': %s"
-msgstr ""
+msgstr "Aldonante pakojn el grupo “%s”: %s"
 
 #: ../dnf/base.py:1655
 msgid "No groups marked for removal."
@@ -3239,51 +3283,54 @@ msgstr ""
 
 #: ../dnf/base.py:1859 ../dnf/base.py:1870 ../dnf/base.py:2224
 msgid "no package matched"
-msgstr ""
+msgstr "neniu pako kongruita"
 
 #: ../dnf/base.py:1885
 #, python-format
 msgid "Package %s not installed, cannot downgrade it."
-msgstr ""
+msgstr "Pako %s ne instalita, ne povas malaltgradigi ĝin."
 
 #: ../dnf/base.py:1894
 #, python-format
 msgid "Package %s of lower version already installed, cannot downgrade it."
 msgstr ""
+"Pli malalta versio de pako %s jam instalita, ne povas malaltgradigi ĝin."
 
 #: ../dnf/base.py:1917
 #, python-format
 msgid "Package %s not installed, cannot reinstall it."
-msgstr ""
+msgstr "Pako %s ne instalita, ne povas reinstali ĝin."
 
 #: ../dnf/base.py:1932
 #, python-format
 msgid "File %s is a source package and cannot be updated, ignoring."
 msgstr ""
+"Dosiero %s estas fontpako kaj oni ne povas ĝisdatigi ĝin, malatentante."
 
 #: ../dnf/base.py:1938
 #, python-format
 msgid "Package %s not installed, cannot update it."
-msgstr ""
+msgstr "Pako %s ne instalita, ne povas ĝisdatigi ĝin."
 
 #: ../dnf/base.py:1947
 #, python-format
 msgid "Package %s of higher version already installed, cannot update it."
-msgstr ""
+msgstr "Pli alta versio de pako %s jam instalita, ne povas ĝisdatigi ĝin."
 
 #: ../dnf/base.py:1993
 #, python-format
 msgid "Package %s available, but installed for different architecture."
-msgstr ""
+msgstr "Pako %s disponeblas, sed instalita por alia arĥitekturo."
 
 #: ../dnf/base.py:2148
 #, python-format
 msgid "Package %s of lowest version already installed, cannot downgrade it."
 msgstr ""
+"Pako %s de plej malalta versio jam instalita, ne povas malaltgradigi ĝin."
 
 #: ../dnf/base.py:2197
 msgid "Action not handled: {}"
-msgstr ""
+msgstr "Ago ne traktita: {}"
 
 #: ../dnf/base.py:2245
 msgid "No security updates needed, but {} update available"
@@ -3304,7 +3351,7 @@ msgstr ""
 #: ../dnf/base.py:2277
 #, python-format
 msgid ". Failing package is: %s"
-msgstr ""
+msgstr ". Fiaskante pako estas: %s"
 
 #: ../dnf/base.py:2278
 #, python-format
@@ -3318,11 +3365,11 @@ msgstr ""
 
 #: ../dnf/base.py:2323
 msgid "The key has been approved."
-msgstr ""
+msgstr "Konsentis la ŝlosilon."
 
 #: ../dnf/base.py:2326
 msgid "The key has been rejected."
-msgstr ""
+msgstr "Rifuzis la ŝlosilon."
 
 #: ../dnf/base.py:2354
 #, python-format
@@ -3331,11 +3378,11 @@ msgstr ""
 
 #: ../dnf/base.py:2356
 msgid "Key imported successfully"
-msgstr ""
+msgstr "Ŝlosilo sukcese enportita"
 
 #: ../dnf/base.py:2360
 msgid "Didn't install any keys"
-msgstr ""
+msgstr "Ne instalis iujn ajn ŝlosilojn"
 
 #: ../dnf/base.py:2363
 #, python-format
@@ -3350,7 +3397,7 @@ msgstr ""
 
 #: ../dnf/base.py:2410
 msgid "  * Maybe you meant: {}"
-msgstr ""
+msgstr "  * Eble vi intencis: {}"
 
 #: ../dnf/base.py:2442
 msgid "Package \"{}\" from local repository \"{}\" has incorrect checksum"
@@ -3373,12 +3420,12 @@ msgstr ""
 #: ../dnf/base.py:2463
 #, python-format
 msgid "Package %s is already installed."
-msgstr ""
+msgstr "Pako %s jam estas instalita."
 
 #: ../dnf/conf/config.py:134
 #, python-format
 msgid "Error parsing '%s': %s"
-msgstr ""
+msgstr "Eraro dum analizado de “%s”: %s"
 
 #: ../dnf/conf/config.py:224
 msgid "Could not set cachedir: {}"
@@ -3401,7 +3448,7 @@ msgstr ""
 
 #: ../dnf/conf/config.py:382 ../dnf/conf/config.py:400
 msgid "Incorrect or unknown \"{}\": {}"
-msgstr ""
+msgstr "Malĝusta aŭ nekonata “{}”: {}"
 
 #: ../dnf/conf/config.py:452
 #, python-format
@@ -3416,7 +3463,7 @@ msgstr ""
 #: ../dnf/conf/read.py:51
 #, python-format
 msgid "Warning: failed loading '%s', skipping."
-msgstr "Peringatan: gagal memuat '%s', lewatkan."
+msgstr "Averto: malsukcesis ŝargi “%s”, preterpasante."
 
 #: ../dnf/conf/read.py:61
 #, python-format
@@ -3450,15 +3497,15 @@ msgstr ""
 
 #: ../dnf/drpm.py:144
 msgid "Delta RPM rebuild failed"
-msgstr "Gagal membangun ulang delta RPM"
+msgstr ""
 
 #: ../dnf/drpm.py:146
 msgid "Checksum of the delta-rebuilt RPM failed"
-msgstr "Pengecekan pembuatan ulang delta RPM gagal"
+msgstr ""
 
 #: ../dnf/drpm.py:149
 msgid "done"
-msgstr "Selesai"
+msgstr "farita"
 
 #: ../dnf/lock.py:100
 #, python-format
@@ -3469,29 +3516,29 @@ msgstr ""
 
 #: ../dnf/comps.py:95
 msgid "skipping."
-msgstr "melewati."
+msgstr "preterpasante."
 
 #: ../dnf/comps.py:187
 #, python-format
 msgid "Group '%s' is not installed."
-msgstr "Grup '%s' tidak terpasang."
+msgstr "Grupo “%s” ne estas instalita."
 
 #: ../dnf/comps.py:189
 #, python-format
 msgid "Group '%s' does not exist."
-msgstr "Grup '%s' tidak ada."
+msgstr "Grupo “%s” ne ekzistas."
 
 #: ../dnf/comps.py:608 ../dnf/comps.py:625
 #, python-format
 msgid "Environment '%s' is not installed."
-msgstr "Lingkungan '%s' tidak terpasang."
+msgstr ""
 
 #: ../dnf/comps.py:653
 #, python-format
 msgid "Group_id '%s' does not exist."
-msgstr "Group_id '%s' tidak ada."
+msgstr ""
 
 #: ../dnf/comps.py:684
 #, python-format
 msgid "Group '%s' not installed."
-msgstr "Grup '%s' tidak terpasang."
+msgstr "Grupo “%s” ne instalita."

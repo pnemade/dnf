@@ -199,7 +199,6 @@ class InfoCommand(Command):
 
     def configure(self):
         demands = self.cli.demands
-        demands.fresh_metadata = False
         demands.sack_activation = True
         if self.opts._packages_action:
             self.opts.packages_action = self.opts._packages_action
@@ -264,12 +263,17 @@ class CheckUpdateCommand(Command):
 
     @staticmethod
     def set_argparser(parser):
+        parser.add_argument('--changelogs', dest='changelogs',
+                            default=False, action='store_true',
+                            help=_('show changelogs before update'))
         parser.add_argument('packages', nargs='*', metavar=_('PACKAGE'))
 
     def configure(self):
         demands = self.cli.demands
         demands.sack_activation = True
         demands.available_repos = True
+        if self.opts.changelogs:
+            demands.changelogs = True
         _checkEnabledRepo(self.base)
 
     def run(self):
@@ -280,7 +284,8 @@ class CheckUpdateCommand(Command):
             query = query.union(obsoletes)
         self.cli._populate_update_security_filter(self.opts, query, cmp_type="gte")
 
-        found = self.base.check_updates(self.opts.packages, print_=True)
+        found = self.base.check_updates(self.opts.packages, print_=True,
+                                        changelogs=self.opts.changelogs)
         if found:
             self.cli.demands.success_exit_status = 100
 
@@ -676,7 +681,7 @@ class RepoPkgsCommand(Command):
                         done = True
 
             if not done:
-                raise dnf.exceptions.Error(_('No packages marked for removal.'))
+                logger.warning(_('No packages marked for removal.'))
 
     class UpgradeSubCommand(Command):
         """Implementation of the upgrade sub-command."""
@@ -835,11 +840,12 @@ class HistoryCommand(Command):
         if self.opts.transactions_action in ['redo', 'undo', 'rollback']:
             require_one_transaction_id = True
             if not self.opts.transactions:
-                logger.critical(_('No transaction ID or package name given.'))
-                raise dnf.cli.CliError
+                msg = _('No transaction ID or package name given.')
+                logger.critical(msg)
+                raise dnf.cli.CliError(msg)
             elif len(self.opts.transactions) > 1:
                 logger.critical(require_one_transaction_id_msg)
-                raise dnf.cli.CliError
+                raise dnf.cli.CliError(require_one_transaction_id_msg)
             demands.available_repos = True
             _checkGPGKey(self.base, self.cli)
         else:
@@ -847,8 +853,9 @@ class HistoryCommand(Command):
         demands.sack_activation = True
         demands.root_user = True
         if not os.access(self.base.history.path, os.R_OK):
-            logger.critical(_("You don't have access to the history DB."))
-            raise dnf.cli.CliError
+            msg = _("You don't have access to the history DB.")
+            logger.critical(msg)
+            raise dnf.cli.CliError(msg)
         self.transaction_ids = self._args2transaction_ids(self.merged_transaction_ids,
                                                           require_one_transaction_id,
                                                           require_one_transaction_id_msg)

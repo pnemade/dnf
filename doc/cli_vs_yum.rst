@@ -219,7 +219,7 @@ During its depsolving phase, YUM outputs lines similar to::
 
 DNF does not output information like this. The technical reason is that depsolver below DNF always considers all dependencies for update candidates and the output would be very long. Secondly, even in YUM this output gets confusing very quickly especially for large transactions and so does more harm than good.
 
-See the the related `Fedora bug 1044999
+See the related `Fedora bug 1044999
 <https://bugzilla.redhat.com/show_bug.cgi?id=1044999>`_.
 
 ===================================================================
@@ -239,12 +239,6 @@ or even::
   dnf provides '*/sandbox'
 
 to obtain similar results.
-
-=================================
-``--enableplugin`` not recognized
-=================================
-
-This switch has been dropped. It is not documented for YUM and of questionable use (all plugins are enabled by default).
 
 ==================
 Bandwidth limiting
@@ -286,7 +280,7 @@ YUM will only issue a warning in this case and continue installing the "tour" pa
 
 DNF will not magically replace a request for installing package ``X`` to installing package ``Y`` if ``Y`` obsoletes ``X``. YUM does this if its ``obsoletes`` config option is enabled but the behavior is not properly documented and can be harmful.
 
-See the the related `Fedora bug 1096506
+See the related `Fedora bug 1096506
 <https://bugzilla.redhat.com/show_bug.cgi?id=1096506>`_ and `guidelines for renaming and obsoleting packages in Fedora <http://fedoraproject.org/wiki/Upgrade_paths_%E2%80%94_renaming_or_splitting_packages>`_.
 
 ====================================
@@ -324,23 +318,25 @@ Original YUM tool                       DNF command/option                      
 --------------------------------------  ----------------------------------------------------------------  -----------------------------------
 ``yum check``                           :ref:`dnf repoquery <repoquery_command-label>` ``--unsatisfied``  ``dnf``
 ``yum-langpacks``                                                                                         ``dnf-langpacks``
+``yum-plugin-aliases``                  :ref:`dnf alias <alias_command-label>`                            ``dnf``
 ``yum-plugin-auto-update-debug-info``   option in ``debuginfo-install.conf``                              ``dnf-plugins-core``
+``yum-plugin-changelog``                                                                                  ``dnf-plugins-core``
 ``yum-plugin-copr``                     `dnf copr`_                                                       ``dnf-plugins-core``
 ``yum-plugin-fastestmirror``            ``fastestmirror`` option in `dnf.conf`_                           ``dnf``
 ``yum-plugin-fs-snapshot``                                                                                ``dnf-plugins-extras-snapper``
 ``yum-plugin-local``                                                                                      ``dnf-plugins-core``
 ``yum-plugin-merge-conf``                                                                                 ``dnf-plugins-extras-rpmconf``
 ``yum-plugin-priorities``               ``priority`` option in `dnf.conf`_                                ``dnf``
-``yum-plugin-remove-with-leaves``       ``dnf autoremove``                                                ``dnf``
+``yum-plugin-remove-with-leaves``       :ref:`dnf autoremove <autoremove_command-label>`                  ``dnf``
 ``yum-plugin-show-leaves``                                                                                ``dnf-plugins-core``
-``yum-plugin-versionlock``                                                                                ``dnf-plugins-core``
+``yum-plugin-tmprepo``                  ``--repofrompath`` option                                         ``dnf``
+``yum-plugin-tsflags``                  ``tsflags``  option in `dnf.conf`_                                ``dnf``
+``yum-plugin-versionlock``                                                                                ``python3-dnf-plugin-versionlock``
 ``yum-rhn-plugin``                                                                                        ``dnf-plugin-spacewalk``
 ======================================  ================================================================  ===================================
 
 Plugins that have not been ported yet:
 
-``yum-plugin-aliases``,
-``yum-plugin-changelog``,
 ``yum-plugin-filter-data``,
 ``yum-plugin-keys``,
 ``yum-plugin-list-data``,
@@ -350,8 +346,6 @@ Plugins that have not been ported yet:
 ``yum-plugin-puppetverify``,
 ``yum-plugin-refresh-updatesd``,
 ``yum-plugin-rpm-warm-cache``,
-``yum-plugin-tmprepo``,
-``yum-plugin-tsflags``,
 ``yum-plugin-upgrade-helper``,
 ``yum-plugin-verify``
 
@@ -372,11 +366,12 @@ Original YUM tool          New DNF command                                  Pack
 ``package-cleanup``        :ref:`dnf list <list_command-label>`,
                            :ref:`dnf repoquery <repoquery_command-label>`   ``dnf``, ``dnf-plugins-core``
 ``repoclosure``            `dnf repoclosure`_                               ``dnf-plugins-extras-repoclosure``
+``repodiff``               `dnf repodiff`_                                  ``dnf-plugins-core``
 ``repo-graph``             `dnf repograph`_                                 ``dnf-plugins-extras-repograph``
 ``repomanage``             `dnf repomanage`_                                ``dnf-plugins-extras-repomanage``
 ``repoquery``              :ref:`dnf repoquery <repoquery_command-label>`   ``dnf``
 ``reposync``               `dnf reposync`_                                  ``dnf-plugins-core``
-``repotrack``              `dnf download --resolve --alldeps`_              ``dnf-plugins-core``
+``repotrack``              `dnf download`_ --resolve --alldeps              ``dnf-plugins-core``
 ``yum-builddep``           `dnf builddep`_                                  ``dnf-plugins-core``
 ``yum-config-manager``     `dnf config-manager`_                            ``dnf-plugins-core``
 ``yum-debug-dump``         `dnf debug-dump`_                                ``dnf-plugins-extras-debug``
@@ -396,9 +391,28 @@ Detailed table for ``package-cleanup`` replacement:
 ``package-cleanup --oldkernels``         ``dnf remove --oldinstallonly``
 ==================================       =====================================
 
-Utilities that have not been ported yet:
+================
+yum-updateonboot
+================
 
-``repodiff``,
+DNF does not have a direct replacement of yum-updateonboot command.
+However, the similar result can be achieved by ``dnf automatic`` command (see :doc:`automatic`).
+
+You can either use the shortcut::
+
+  $ systemctl enable dnf-automatic-install.timer && systemctl start dnf-automatic-install.timer
+
+Or set ``apply_updates`` option of ``/etc/dnf/automatic.conf`` to True and use generic timer unit::
+
+  $ systemctl enable dnf-automatic.timer && systemctl start dnf-automatic.timer
+
+The timer in both cases is activated 1 hour after the system was booted up and then repetitively once every 24 hours. There is also a random delay on these timers set to 5 minutes. These values can be tweaked via ``dnf-automatic*.timer`` config files located in the ``/usr/lib/systemd/system/`` directory.
+
+
+=======================================
+Utilities that have not been ported yet
+=======================================
+
 ``repo-rss``,
 ``show-changed-rco``,
 ``show-installed``,
@@ -411,6 +425,7 @@ Take a look at the FAQ_ about YUM to DNF migration. Feel free to file an RFE_ fo
 .. _dnf list installed: http://dnf.readthedocs.org/en/latest/command_ref.html
 .. _dnf tracer: http://dnf-plugins-extras.readthedocs.org/en/latest/tracer.html
 .. _dnf repoclosure: http://dnf-plugins-extras.readthedocs.org/en/latest/repoclosure.html
+.. _dnf repodiff: http://dnf-plugins-core.readthedocs.org/en/latest/repodiff.html
 .. _dnf repograph: http://dnf-plugins-extras.readthedocs.org/en/latest/repograph.html
 .. _dnf repomanage: http://dnf-plugins-extras.readthedocs.org/en/latest/repomanage.html
 .. _dnf reposync: http://dnf-plugins-core.readthedocs.org/en/latest/reposync.html

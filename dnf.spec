@@ -1,12 +1,12 @@
 # default dependencies
-%global hawkey_version 0.22.0
+%global hawkey_version 0.28.0
 %global libcomps_version 0.1.8
 %global libmodulemd_version 1.4.0
 %global rpm_version 4.14.0
 
 # conflicts
-%global conflicts_dnf_plugins_core_version 3.1
-%global conflicts_dnf_plugins_extras_version 3.0.2
+%global conflicts_dnf_plugins_core_version 4.0.6
+%global conflicts_dnf_plugins_extras_version 4.0.4
 %global conflicts_dnfdaemon_version 0.3.19
 
 # override dependencies for rhel 7
@@ -72,7 +72,7 @@
 It supports RPMs, modules and comps groups & environments.
 
 Name:           dnf
-Version:        4.0.4
+Version:        4.2.1
 Release:        1%{?dist}
 Summary:        %{pkg_summary}
 # For a breakdown of the licensing, see PACKAGE-LICENSING
@@ -83,14 +83,15 @@ BuildArch:      noarch
 BuildRequires:  cmake
 BuildRequires:  gettext
 # Documentation
-BuildRequires:  %{_bindir}/sphinx-build
 BuildRequires:  systemd
 BuildRequires:  bash-completion
 # %{_bindir}/sqlite3 is needed for bash-completion script
 Recommends: (%{_bindir}/sqlite3 if bash-completion)
 %if %{with python3}
+BuildRequires:  %{_bindir}/sphinx-build-3
 Requires:       python3-%{name} = %{version}-%{release}
 %else
+BuildRequires:  %{_bindir}/sphinx-build
 Requires:       python2-%{name} = %{version}-%{release}
 %endif
 %if 0%{?rhel} && 0%{?rhel} <= 7
@@ -105,6 +106,7 @@ Recommends:     (python2-dbus if NetworkManager)
 Recommends:     (%{_bindir}/sqlite3 if bash-completion)
 %endif
 %{?systemd_requires}
+Provides:       dnf-command(alias)
 Provides:       dnf-command(autoremove)
 Provides:       dnf-command(check-update)
 Provides:       dnf-command(clean)
@@ -148,7 +150,7 @@ Common data and configuration files for DNF
 Requires:       %{name} = %{version}-%{release}
 Summary:        %{pkg_summary}
 %if 0%{?fedora}
-%if 0%{?fedora} >= 30
+%if 0%{?fedora} >= 31
 Conflicts:      yum
 %else
 Conflicts:      yum < 3.4.3-505
@@ -181,8 +183,6 @@ Requires:       python2-gpg
 BuildRequires:  python2-enum34
 Requires:       python2-enum34
 %endif
-BuildRequires:  pyliblzma
-Requires:       pyliblzma
 Requires:       %{name}-data = %{version}-%{release}
 %if 0%{?fedora}
 Recommends:     deltarpm
@@ -196,13 +196,9 @@ Requires:       python2-libdnf >= %{hawkey_version}
 Requires:       python2-libcomps >= %{libcomps_version}
 Requires:       python2-libdnf
 %if 0%{?rhel} && 0%{?rhel} <= 7
-BuildRequires:  python-iniparse
-Requires:       python-iniparse
 BuildRequires:  rpm-python >= %{rpm_version}
 Requires:       rpm-python >= %{rpm_version}
 %else
-BuildRequires:  python2-iniparse
-Requires:       python2-iniparse
 BuildRequires:  python2-rpm >= %{rpm_version}
 Requires:       python2-rpm >= %{rpm_version}
 Recommends:     rpm-plugin-systemd-inhibit
@@ -220,7 +216,6 @@ Summary:        Python 3 interface to DNF
 BuildRequires:  python3-devel
 BuildRequires:  python3-hawkey >= %{hawkey_version}
 BuildRequires:  python3-libdnf >= %{hawkey_version}
-BuildRequires:  python3-iniparse
 BuildRequires:  python3-libcomps >= %{libcomps_version}
 BuildRequires:  python3-libdnf
 BuildRequires:  libmodulemd >= %{libmodulemd_version}
@@ -237,7 +232,6 @@ Requires:       deltarpm
 %endif
 Requires:       python3-hawkey >= %{hawkey_version}
 Requires:       python3-libdnf >= %{hawkey_version}
-Requires:       python3-iniparse
 Requires:       python3-libcomps >= %{libcomps_version}
 Requires:       python3-libdnf
 BuildRequires:  python3-rpm >= %{rpm_version}
@@ -302,6 +296,7 @@ mkdir build-py3
 
 %find_lang %{name}
 mkdir -p %{buildroot}%{confdir}/vars
+mkdir -p %{buildroot}%{confdir}/aliases.d
 mkdir -p %{buildroot}%{pluginconfpath}/
 mkdir -p %{buildroot}%{_sysconfdir}/%{name}/modules.d
 mkdir -p %{buildroot}%{_sysconfdir}/%{name}/modules.defaults.d
@@ -406,18 +401,19 @@ ln -sr  %{buildroot}%{confdir}/vars %{buildroot}%{_sysconfdir}/yum/vars
 %dir %{pluginconfpath}
 %dir %{confdir}/protected.d
 %dir %{confdir}/vars
+%dir %{confdir}/aliases.d
 %config(noreplace) %{confdir}/%{name}.conf
 %config(noreplace) %{confdir}/protected.d/%{name}.conf
 %config(noreplace) %{_sysconfdir}/logrotate.d/%{name}
-%ghost %{_localstatedir}/log/hawkey.log
-%ghost %{_localstatedir}/log/%{name}.log
-%ghost %{_localstatedir}/log/%{name}.librepo.log
-%ghost %{_localstatedir}/log/%{name}.rpm.log
-%ghost %{_localstatedir}/log/%{name}.plugin.log
-%ghost %{_sharedstatedir}/%{name}
-%ghost %{_sharedstatedir}/%{name}/groups.json
-%ghost %{_sharedstatedir}/%{name}/yumdb
-%ghost %{_sharedstatedir}/%{name}/history
+%ghost %attr(644,-,-) %{_localstatedir}/log/hawkey.log
+%ghost %attr(644,-,-) %{_localstatedir}/log/%{name}.log
+%ghost %attr(644,-,-) %{_localstatedir}/log/%{name}.librepo.log
+%ghost %attr(644,-,-) %{_localstatedir}/log/%{name}.rpm.log
+%ghost %attr(644,-,-) %{_localstatedir}/log/%{name}.plugin.log
+%ghost %attr(755,-,-) %dir %{_sharedstatedir}/%{name}
+%ghost %attr(644,-,-) %{_sharedstatedir}/%{name}/groups.json
+%ghost %attr(755,-,-) %dir %{_sharedstatedir}/%{name}/yumdb
+%ghost %attr(755,-,-) %dir %{_sharedstatedir}/%{name}/history
 %{_mandir}/man5/%{name}.conf.5*
 %{_tmpfilesdir}/%{name}.conf
 %{_sysconfdir}/libreport/events.d/collect_dnf.conf
@@ -433,11 +429,15 @@ ln -sr  %{buildroot}%{confdir}/vars %{buildroot}%{_sysconfdir}/yum/vars
 %{_mandir}/man5/yum.conf.5.*
 %{_mandir}/man8/yum.8*
 %{_mandir}/man8/yum-shell.8*
+%{_mandir}/man1/yum-aliases.1*
+%config(noreplace) %{confdir}/protected.d/yum.conf
 %else
 %exclude %{_mandir}/man8/yum-shell.8*
+%exclude %{_mandir}/man1/yum-aliases.1*
 %exclude %{_sysconfdir}/yum/pluginconf.d
 %exclude %{_sysconfdir}/yum/protected.d
 %exclude %{_sysconfdir}/yum/vars
+%exclude %{confdir}/protected.d/yum.conf
 %endif
 
 %if "%{yum_subpackage_name}" == "nextgen-yum4"
@@ -451,7 +451,7 @@ ln -sr  %{buildroot}%{confdir}/vars %{buildroot}%{_sysconfdir}/yum/vars
 %if "%{yum_subpackage_name}" == "%{name}-yum"
 %{_bindir}/yum
 %{_mandir}/man8/yum.8*
-%if 0%{?fedora} >= 30
+%if 0%{?fedora} >= 31
 %{_sysconfdir}/yum.conf
 %{_mandir}/man5/yum.conf.5*
 %else
@@ -496,6 +496,50 @@ ln -sr  %{buildroot}%{confdir}/vars %{buildroot}%{_sysconfdir}/yum/vars
 %endif
 
 %changelog
+* Mon Mar 11 2019 Pavla Kratochvilova <pkratoch@redhat.com> - 4.2.1-1
+- Do not allow direct module switch (RhBug:1669491)
+- Use improved config parser that preserves order of data
+- Fix alias list command (RhBug:1666325)
+- Postpone yum conflict to F31
+- Update documentation: implemented plugins; options; deprecated commands (RhBug:1670835,1673278) 
+- Support zchunk (".zck") compression
+- Fix behavior  of ``--bz`` option when specifying more values
+- Follow RPM security policy for package verification
+- Update modules regardless of installed profiles
+- Add protection of yum package (RhBug:1639363)
+- Fix ``list --showduplicates`` (RhBug:1655605)
+
+* Tue Feb 12 2019 Pavla Kratochvilova <pkratoch@redhat.com> - 4.1.0-1
+- Allow to enable modules that break default modules (RhBug:1648839)
+- Enhance documentation - API examples
+- Add best as default behavior (RhBug:1670776,1671683)
+- Add --nobest option
+
+* Wed Dec 12 2018 Jaroslav Mracek <jmracek@redhat.com> - 4.0.10-1
+- Updated difference YUM vs. DNF for yum-updateonboot
+- Added new command ``dnf alias [options] [list|add|delete] [<name>...]`` to allow the user to
+  define and manage a list of aliases
+- Enhanced documentation
+- Unifying return codes for remove operations
+- [transaction] Make transaction content available for commands
+- Triggering transaction hooks if no transaction (RhBug:1650157)
+- Add hotfix packages to install pool (RhBug:1654738)
+- Report group operation in transaction table
+- [sack] Change algorithm to calculate rpmdb_version
+
+* Thu Nov 22 2018 Jaroslav Mracek <jmracek@redhat.com> - 4.0.9-1
+- Added dnf.repo.Repo.get_http_headers
+- Added dnf.repo.Repo.set_http_headers
+- Added dnf.repo.Repo.add_metadata_type_to_download
+- Added dnf.repo.Repo.get_metadata_path
+- Added dnf.repo.Repo.get_metadata_content
+- Added --changelogs option for check-update command
+- [module] Add information about active modules
+- Hide messages created only for logging
+- Enhanced --setopt option
+- [module] Fix dnf remove @<module>
+- [transaction] Make transaction content available for plugins
+
 * Mon Oct 15 2018 Jaroslav Mracek <jmracek@redhat.com> - 4.0.4-1
 - Update to 4.0.4
 - Add dnssec extension
